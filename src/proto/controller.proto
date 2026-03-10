@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+service ControllerMessagingService {
+  rpc SendNeighborsASN(ASList) returns (ResponseStatus) {}
+}
+
+message ASList {
+  repeated uint32 as_list = 1;
+}
+
+message ResponseStatus {
+  string status = 1;
+}
