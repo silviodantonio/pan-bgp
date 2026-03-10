@@ -5,7 +5,8 @@ service ControllerMessagingService {
 }
 
 message ASList {
-  repeated uint32 as_list = 1;
+  uint32 local_as = 1;
+  repeated uint32 remote_as_list = 2;
 }
 
 message ResponseStatus {

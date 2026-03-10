@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10\x63ontroller.proto\"\x19\n\x06\x41SList\x12\x0f\n\x07\x61s_list\x18\x01 \x03(\r\" \n\x0eResponseStatus\x12\x0e\n\x06status\x18\x01 \x01(\t2L\n\x1a\x43ontrollerMessagingService\x12.\n\x10SendNeighborsASN\x12\x07.ASList\x1a\x0f.ResponseStatus\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10\x63ontroller.proto\"2\n\x06\x41SList\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x16\n\x0eremote_as_list\x18\x02 \x03(\r\" \n\x0eResponseStatus\x12\x0e\n\x06status\x18\x01 \x01(\t2L\n\x1a\x43ontrollerMessagingService\x12.\n\x10SendNeighborsASN\x12\x07.ASList\x1a\x0f.ResponseStatus\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,9 +32,9 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'controller_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_ASLIST']._serialized_start=20
-  _globals['_ASLIST']._serialized_end=45
-  _globals['_RESPONSESTATUS']._serialized_start=47
-  _globals['_RESPONSESTATUS']._serialized_end=79
-  _globals['_CONTROLLERMESSAGINGSERVICE']._serialized_start=81
-  _globals['_CONTROLLERMESSAGINGSERVICE']._serialized_end=157
+  _globals['_ASLIST']._serialized_end=70
+  _globals['_RESPONSESTATUS']._serialized_start=72
+  _globals['_RESPONSESTATUS']._serialized_end=104
+  _globals['_CONTROLLERMESSAGINGSERVICE']._serialized_start=106
+  _globals['_CONTROLLERMESSAGINGSERVICE']._serialized_end=182
 # @@protoc_insertion_point(module_scope)

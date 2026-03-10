@@ -9,5 +9,4 @@ proto: $(proto_fullpath)
 	python3 -m grpc_tools.protoc -I$(proto_folder) --python_out=$(proto_out) --grpc_python_out=$(proto_out) $(proto_fullpath)
 
 docker: *.py requirements.txt
-	pip freeze > requirements.txt
 	docker build -t panbgp/controller .
