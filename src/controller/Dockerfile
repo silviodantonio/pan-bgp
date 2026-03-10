@@ -1,4 +1,4 @@
-FROM kathara/frr
+FROM kathara/base
 
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
 

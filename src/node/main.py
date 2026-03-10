@@ -1,13 +1,25 @@
+import os
+import sys
+
 import grpc
 
 import vtysh_iface
 import controller_pb2
 import controller_pb2_grpc
 
+controller_addr = os.environ.get('CONTROLLER_ADDR_IPv4')
+controller_port = os.environ.get('CONTROLLER_PORT')
+
+if controller_addr is None or controller_port is None:
+    raise ValueError('Required environment variables not set')
+    sys.exit(1)
+
+controller_addr_str = f'{controller_addr}:{controller_port}'
+
 
 def run():
     print("Sending neighbors ASN to controller")
-    with grpc.insecure_channel("localhost:50051") as channel:
+    with grpc.insecure_channel(controller_addr_str) as channel:
         stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
 
         # get info about as neighbors
@@ -21,3 +33,4 @@ def run():
 if __name__=='__main__':
     # logging.basicConfig()
     run()
+    sys.exit(0)
