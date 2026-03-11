@@ -1,69 +1,79 @@
 from collections import deque
+import sys
 
-class DirectedGraph:
+class Node:
 
     def __init__(self):
-        self._adj_list = {}
+        self.id = None
+        # store neighbors
+        self.neighbors = set ()
 
-    def add_node(self, node_id):
-        # Do not accept nodes with duplicate id
-        if node_id in self.nodes():
-            raise ValueError
+class ASNode(Node):
+
+    def __init__(self):
+        super().__init__()
+        self.controlled = False
+        self.prefixes = set()
+
+
+class Graph:
+
+    def __init__(self):
+        self.nodes = {}
+
+    def add_node(self, node: Node):
+        if node.id in self.nodes:
+            raise ValueError('Node with same id already exists')
         else:
-            self._adj_list[node_id] = []
+            self.nodes[node.id] = node
 
-    def nodes(self):
-        return list(self._adj_list.keys())
+    def del_node(self, node_idtorm):
 
-    def del_node(self, node_id):
+        node_torm = self.nodes.get(node_idtorm)
+        if node_torm is None:
+            raise ValueError('No such node')
 
-        # Remove node
-        del self._adj_list[node_id]
+        # remove it as neighbor from all other nodes
+        for node_id, node in self.nodes.items():
+            if node_torm in node.neighbors:
+                node.neighbors.remove(node_torm)
 
-        # Remove edges that were directed towards the removed node
-        for adj_nodes in self._adj_list.values():
-            if node_id in adj_nodes:
-                adj_nodes.remove(node_id)
+        del self.nodes[node_idtorm]
 
-    def add_edge(self, start, end):
-        if end not in self._adj_list[start]:
-            self._adj_list[start].append(end)
+    def add_edge(self, start_node_id, end_node_id):
+        start_node = self.nodes.get(start_node_id)
+        if start_node is None:
+            raise ValueError(f"No node with id {start_node_id}")
 
-    def del_edge(self, start, end):
-        updated_adj_list = self._adj_list[start]
-        updated_adj_list.remove(end)
-        self._adj_list[start] = updated_adj_list
+        end_node = self.nodes.get(end_node_id)
+        if start_node is None:
+            raise ValueError(f"No node with id {start_node_id}")
 
-    def edges(self) -> list:
-        edges = []
-        for start, adj_nodes in self._adj_list.items():
-            for adj_node in adj_nodes:
-                edges.append((start, adj_node))
+        # Undirected graph
+        start_node.neighbors.add(end_node)
+        end_node.neighbors.add(start_node)
 
-        return edges
+    def del_edge(self, start_node_id, end_node_id):
+        start_node = self.nodes.get(start_node_id)
+        if start_node is None:
+            raise ValueError(f"No node with id {start_node_id}")
 
-    def bfs(self, root) -> list:
+        end_node = self.nodes.get(end_node_id)
+        if start_node is None:
+            raise ValueError(f"No node with id {start_node_id}")
 
-        q = deque()
-        visited = []
+        # Undirected graph
+        start_node.neighbors.remove(end_node)
+        end_node.neighbors.remove(start_node)
 
-        q.append(root)
-
-        while len(q) != 0:
-
-            node = q.popleft()
-
-            if node not in visited:
-                visited.append(node)
-
-                for adj_node in self._adj_list[node]:
-                    if adj_node not in visited:
-                        q.append(adj_node)
-
-        return visited
+    # TODO: will need a BFS implementation
 
     def __str__(self):
         return_str = ''
-        for node, adj_nodes in self._adj_list.items():
-            return_str += f"{node}: {adj_nodes}\n"
+        for node_id, node in self.nodes.items():
+            neighbor_nodes_list = []
+            for neighbor in node.neighbors:
+                neighbor_nodes_list.append(neighbor.get(neighbor.id))
+            return_str += f"{node_id}: {neighbor_nodes_list}\n"
         return return_str
+

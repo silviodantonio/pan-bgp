@@ -7,28 +7,52 @@ import graph
 import controller_pb2       # Contains message type definitions
 import controller_pb2_grpc  # Contains stubs and other stuf for building the server
 
-topology_graph = graph.DirectedGraph()
-def add_neighbors(local_as, remote_as_list):
-    try:
-        topology_graph.add_node(local_as)
-        for remote_as in remote_as_list:
-            topology_graph.add_edge(local_as, remote_as)
-    except ValueError:
-        logging.warning("An error occured while updating the topology graph")
+# known_as = {}
 
+topology_graph = graph.Graph()
 
 # Implementation of the stub contained in pb2_grpc
 class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceServicer):
 
     def SendNeighborsASN(self, request, context):
+
         logging.info(f"AS {request.local_as} has neigbors {request.remote_as_list}")
-        # add info to topology graph
-        add_neighbors(request.local_as, request.remote_as_list)
-        logging.debug(topology_graph)
+
+        local_as = request.local_as
+        remote_as_list = request.remote_as_list
+
+        # if not exists, build a new node
+        if local_as not in topology_graph.nodes:
+            logging.debug(f"Creating new node for AS {local_as}")
+            new_as = graph.ASNode()
+            new_as.id = local_as
+            topology_graph.add_node(new_as)
+
+        # mark it as controlled
+        topology_graph.nodes.get(local_as).controlled = True
+        logging.debug(f"Marked AS {local_as} as controlled")
+
+        # add neighbors
+        for neighbor_as in remote_as_list:
+            logging.debug(f"Add {neighbor_as} as {local_as} neighbor")
+            if neighbor_as not in topology_graph.nodes:
+                logging.debug(f"{neighbor_as} is a new AS")
+                new_as = graph.ASNode()
+                new_as.id = neighbor_as
+                topology_graph.add_node(new_as)
+            topology_graph.add_edge(local_as, neighbor_as)
+
         return controller_pb2.ResponseStatus(status="OK")
 
     def SendPrefixes(self, request, context):
         logging.info(f"AS {request.local_as} has prefixes {request.prefix_list}")
+
+        local_as = topology_graph.nodes.get(request.local_as)
+        prefix_list = request.prefix_list
+
+        for prefix in prefix_list:
+            local_as.prefixes.add(prefix)
+
         return controller_pb2.ResponseStatus(status="OK")
 
 def serve():
