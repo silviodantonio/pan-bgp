@@ -27,6 +27,9 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
         logging.debug(topology_graph)
         return controller_pb2.ResponseStatus(status="OK")
 
+    def SendPrefixes(self, request, context):
+        logging.info(f"AS {request.local_as} has prefixes {request.prefix_list}")
+        return controller_pb2.ResponseStatus(status="OK")
 
 def serve():
     port = "50051"

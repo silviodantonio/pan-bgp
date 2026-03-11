@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10\x63ontroller.proto\"2\n\x06\x41SList\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x16\n\x0eremote_as_list\x18\x02 \x03(\r\" \n\x0eResponseStatus\x12\x0e\n\x06status\x18\x01 \x01(\t2L\n\x1a\x43ontrollerMessagingService\x12.\n\x10SendNeighborsASN\x12\x07.ASList\x1a\x0f.ResponseStatus\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10\x63ontroller.proto\"2\n\x06\x41SList\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x16\n\x0eremote_as_list\x18\x02 \x03(\r\"3\n\nPrefixList\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x13\n\x0bprefix_list\x18\x02 \x03(\t\" \n\x0eResponseStatus\x12\x0e\n\x06status\x18\x01 \x01(\t2|\n\x1a\x43ontrollerMessagingService\x12.\n\x10SendNeighborsASN\x12\x07.ASList\x1a\x0f.ResponseStatus\"\x00\x12.\n\x0cSendPrefixes\x12\x0b.PrefixList\x1a\x0f.ResponseStatus\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,8 +33,10 @@ if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_ASLIST']._serialized_start=20
   _globals['_ASLIST']._serialized_end=70
-  _globals['_RESPONSESTATUS']._serialized_start=72
-  _globals['_RESPONSESTATUS']._serialized_end=104
-  _globals['_CONTROLLERMESSAGINGSERVICE']._serialized_start=106
-  _globals['_CONTROLLERMESSAGINGSERVICE']._serialized_end=182
+  _globals['_PREFIXLIST']._serialized_start=72
+  _globals['_PREFIXLIST']._serialized_end=123
+  _globals['_RESPONSESTATUS']._serialized_start=125
+  _globals['_RESPONSESTATUS']._serialized_end=157
+  _globals['_CONTROLLERMESSAGINGSERVICE']._serialized_start=159
+  _globals['_CONTROLLERMESSAGINGSERVICE']._serialized_end=283
 # @@protoc_insertion_point(module_scope)

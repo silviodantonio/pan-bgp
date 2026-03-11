@@ -39,6 +39,11 @@ class ControllerMessagingServiceStub(object):
                 request_serializer=controller__pb2.ASList.SerializeToString,
                 response_deserializer=controller__pb2.ResponseStatus.FromString,
                 _registered_method=True)
+        self.SendPrefixes = channel.unary_unary(
+                '/ControllerMessagingService/SendPrefixes',
+                request_serializer=controller__pb2.PrefixList.SerializeToString,
+                response_deserializer=controller__pb2.ResponseStatus.FromString,
+                _registered_method=True)
 
 
 class ControllerMessagingServiceServicer(object):
@@ -50,12 +55,23 @@ class ControllerMessagingServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def SendPrefixes(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ControllerMessagingServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'SendNeighborsASN': grpc.unary_unary_rpc_method_handler(
                     servicer.SendNeighborsASN,
                     request_deserializer=controller__pb2.ASList.FromString,
+                    response_serializer=controller__pb2.ResponseStatus.SerializeToString,
+            ),
+            'SendPrefixes': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendPrefixes,
+                    request_deserializer=controller__pb2.PrefixList.FromString,
                     response_serializer=controller__pb2.ResponseStatus.SerializeToString,
             ),
     }
@@ -85,6 +101,33 @@ class ControllerMessagingService(object):
             target,
             '/ControllerMessagingService/SendNeighborsASN',
             controller__pb2.ASList.SerializeToString,
+            controller__pb2.ResponseStatus.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SendPrefixes(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/ControllerMessagingService/SendPrefixes',
+            controller__pb2.PrefixList.SerializeToString,
             controller__pb2.ResponseStatus.FromString,
             options,
             channel_credentials,

@@ -34,6 +34,19 @@ def run():
 
     logging.info("Received: " + response.status)
 
+    logging.info("Sending attached prefixes to controller")
+    with grpc.insecure_channel(controller_addr_str) as channel:
+        stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
+
+        local_as = border_router.local_as
+        attached_prefixes = border_router.attached_prefixes
+        logging.info(f"Sending prefixes: {attached_prefixes}")
+
+        response = stub.SendPrefixes(controller_pb2.PrefixList(local_as=local_as,
+                                                               prefix_list=attached_prefixes))
+
+    logging.info("Received: " + response.status)
+
 if __name__=='__main__':
     logging.basicConfig(filename='/var/log/panbgp.log',
                         level=logging.DEBUG)

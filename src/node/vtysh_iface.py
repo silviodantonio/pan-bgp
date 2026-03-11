@@ -7,36 +7,13 @@ for managing frr and all its supported daemons.
 `vtysh` is used for getting information about bgp peers and paths
 """
 
-class BorderRouter:
+def call_vtysh(vtysh_command):
 
-    def __init__(self):
-        self.local_as, self.remote_as_set = self._get_as_info()
-
-    def _get_as_info(self):
-        # Returns local ASN and set of neighboring AS
-
-        vtysh_bgp_peer_summary = ["vtysh", "-d", "bgpd", "-c", "show ip bgp summary json"]
-
-        local_as = None
-        remote_as_set = set()
+        command_out = None
 
         try:
-            completed_proc = sp.run(vtysh_bgp_peer_summary, 
-                                    check=True, capture_output=True, text=True)
-
-            # Extract json payload from root tag
-            bgp_peer_summary = json.loads(completed_proc.stdout).get('ipv4Unicast')
-
-            # Get local ASN
-            local_as = bgp_peer_summary.get("as")
-
-            # Get neighbors ASN
-            # bgp_peers contains: neighbor address, neighbor info
-            bgp_peers = bgp_peer_summary.get("peers")
-            if bgp_peers is not None:
-                for _, peering_info in bgp_peers.items():
-                    remote_as = peering_info["remoteAs"]
-                    remote_as_set.add(remote_as)
+            completed_proc = sp.run(vtysh_command, check=True, capture_output=True, text=True)
+            command_out = completed_proc.stdout
 
         except sp.CalledProcessError as proc_err:
             # TODO: change this part into logging
@@ -44,4 +21,46 @@ class BorderRouter:
             print(proc_err)
 
         finally:
-            return local_as, remote_as_set
+            return command_out
+
+class BorderRouter:
+
+    def __init__(self):
+        self.local_as, self.remote_as_set = self._get_asn()
+        self.attached_prefixes = self._get_attached_prefixes()
+
+    def _get_asn(self):
+        # Get both local AS number and neighbors one
+
+        local_as = None
+        remote_as_set = set()
+
+        vtysh_bgp_peer_summary = ["vtysh", "-d", "bgpd", "-c", "show ip bgp summary json"]
+        vtysh_out = call_vtysh(vtysh_bgp_peer_summary)
+        vtysh_out = json.loads(vtysh_out).get("ipv4Unicast")
+
+        local_as = vtysh_out.get("as")
+
+        bgp_peers = vtysh_out.get("peers")
+        if bgp_peers is not None:
+            for peer_address, peering_info in bgp_peers.items():
+                remote_as_set.add(peering_info["remoteAs"])
+
+        return local_as, remote_as_set
+
+
+    def _get_attached_prefixes(self):
+
+        attached_prefixes = set()
+
+        vtysh_bgp_peer_summary = ["vtysh", "-d", "bgpd", "-c", "show ip bgp self-originate json"]
+        vtysh_out = call_vtysh(vtysh_bgp_peer_summary)
+        vtysh_out = json.loads(vtysh_out)
+
+        self_orig_routes = vtysh_out.get("routes")
+        if self_orig_routes is not None:
+            for prefix, route_info in self_orig_routes.items():
+                attached_prefixes.add(prefix)
+
+        return attached_prefixes
+

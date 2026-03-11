@@ -6,4 +6,6 @@ systemctl start frr
 export CONTROLLER_ADDR_IPv4=192.0.2.1
 export CONTROLLER_PORT=50051
 
+sleep 2
+
 python3 main.py
