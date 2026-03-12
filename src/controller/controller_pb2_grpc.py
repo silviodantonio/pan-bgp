@@ -34,28 +34,28 @@ class ControllerMessagingServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.SendNeighborsASN = channel.unary_unary(
-                '/ControllerMessagingService/SendNeighborsASN',
-                request_serializer=controller__pb2.ASList.SerializeToString,
+        self.SendASInfo = channel.unary_unary(
+                '/ControllerMessagingService/SendASInfo',
+                request_serializer=controller__pb2.ASInfo.SerializeToString,
                 response_deserializer=controller__pb2.ResponseStatus.FromString,
                 _registered_method=True)
-        self.SendPrefixes = channel.unary_unary(
-                '/ControllerMessagingService/SendPrefixes',
-                request_serializer=controller__pb2.PrefixList.SerializeToString,
-                response_deserializer=controller__pb2.ResponseStatus.FromString,
+        self.RequestPath = channel.unary_unary(
+                '/ControllerMessagingService/RequestPath',
+                request_serializer=controller__pb2.Destination.SerializeToString,
+                response_deserializer=controller__pb2.ASPath.FromString,
                 _registered_method=True)
 
 
 class ControllerMessagingServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def SendNeighborsASN(self, request, context):
+    def SendASInfo(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def SendPrefixes(self, request, context):
+    def RequestPath(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -64,15 +64,15 @@ class ControllerMessagingServiceServicer(object):
 
 def add_ControllerMessagingServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'SendNeighborsASN': grpc.unary_unary_rpc_method_handler(
-                    servicer.SendNeighborsASN,
-                    request_deserializer=controller__pb2.ASList.FromString,
+            'SendASInfo': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendASInfo,
+                    request_deserializer=controller__pb2.ASInfo.FromString,
                     response_serializer=controller__pb2.ResponseStatus.SerializeToString,
             ),
-            'SendPrefixes': grpc.unary_unary_rpc_method_handler(
-                    servicer.SendPrefixes,
-                    request_deserializer=controller__pb2.PrefixList.FromString,
-                    response_serializer=controller__pb2.ResponseStatus.SerializeToString,
+            'RequestPath': grpc.unary_unary_rpc_method_handler(
+                    servicer.RequestPath,
+                    request_deserializer=controller__pb2.Destination.FromString,
+                    response_serializer=controller__pb2.ASPath.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -86,7 +86,7 @@ class ControllerMessagingService(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def SendNeighborsASN(request,
+    def SendASInfo(request,
             target,
             options=(),
             channel_credentials=None,
@@ -99,8 +99,8 @@ class ControllerMessagingService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/ControllerMessagingService/SendNeighborsASN',
-            controller__pb2.ASList.SerializeToString,
+            '/ControllerMessagingService/SendASInfo',
+            controller__pb2.ASInfo.SerializeToString,
             controller__pb2.ResponseStatus.FromString,
             options,
             channel_credentials,
@@ -113,7 +113,7 @@ class ControllerMessagingService(object):
             _registered_method=True)
 
     @staticmethod
-    def SendPrefixes(request,
+    def RequestPath(request,
             target,
             options=(),
             channel_credentials=None,
@@ -126,9 +126,9 @@ class ControllerMessagingService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/ControllerMessagingService/SendPrefixes',
-            controller__pb2.PrefixList.SerializeToString,
-            controller__pb2.ResponseStatus.FromString,
+            '/ControllerMessagingService/RequestPath',
+            controller__pb2.Destination.SerializeToString,
+            controller__pb2.ASPath.FromString,
             options,
             channel_credentials,
             insecure,

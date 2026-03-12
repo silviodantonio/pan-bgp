@@ -9,30 +9,30 @@ import controller_pb2_grpc  # Contains stubs and other stuf for building the ser
 
 # known_as = {}
 
-topology_graph = graph.Graph()
+topology_graph = graph.ASGraph()
 
 # Implementation of the stub contained in pb2_grpc
 class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceServicer):
 
-    def SendNeighborsASN(self, request, context):
-
-        logging.info(f"AS {request.local_as} has neigbors {request.remote_as_list}")
+    def SendASInfo(self, request, context):
 
         local_as = request.local_as
         remote_as_list = request.remote_as_list
+        prefix_list = request.prefix_list
+
+        logging.info(f"Received info message from {local_as}")
+        logging.debug(f"ASN: {local_as}, neighbors: {remote_as_list}, prefixes: {prefix_list}")
 
         # if not exists, build a new node
         if local_as not in topology_graph.nodes:
-            logging.debug(f"Creating new node for AS {local_as}")
+            logging.info(f"Creating new node for AS {local_as}")
             new_as = graph.ASNode()
             new_as.id = local_as
+            new_as.prefixes = set(prefix_list)
+            new_as.controlled = True
             topology_graph.add_node(new_as)
 
-        # mark it as controlled
-        topology_graph.nodes.get(local_as).controlled = True
-        logging.debug(f"Marked AS {local_as} as controlled")
-
-        # add neighbors
+        # add neighbors. if unknown AS, create a new node for them
         for neighbor_as in remote_as_list:
             logging.debug(f"Add {neighbor_as} as {local_as} neighbor")
             if neighbor_as not in topology_graph.nodes:
@@ -44,16 +44,26 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
         return controller_pb2.ResponseStatus(status="OK")
 
-    def SendPrefixes(self, request, context):
-        logging.info(f"AS {request.local_as} has prefixes {request.prefix_list}")
+    def RequestPath(self, request, context):
 
         local_as = topology_graph.nodes.get(request.local_as)
-        prefix_list = request.prefix_list
+        dest_prefix = request.dest_prefix
 
-        for prefix in prefix_list:
-            local_as.prefixes.add(prefix)
+        logging.info(f'AS {local_as.id} requested paths for prefix {dest_prefix}')
 
-        return controller_pb2.ResponseStatus(status="OK")
+        # check if prefix is attached to some known AS
+        dest_as_id = topology_graph.prefix_as_table.get(dest_prefix)
+        if dest_as_id is None:
+            logging.info(f'No known AS owns {dest_prefix}')
+            return controller_pb2.ASPath(as_path=[])
+        dest_as = topology_graph.nodes.get(dest_as_id)
+
+        # get all paths
+        paths = topology_graph.find_all_paths(local_as, dest_as)
+        first_path = [as_info.id for as_info in paths[0]]
+
+        # TODO: get gRPC to return multiple paths
+        return controller_pb2.ASPath(as_path=first_path)
 
 def serve():
     port = "50051"

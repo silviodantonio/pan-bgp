@@ -20,35 +20,44 @@ controller_addr_str = f'{controller_addr}:{controller_port}'
 border_router = vtysh_iface.BorderRouter()
 
 # start message exchange with controller
-def run():
+def send_as_info():
+
     logging.info("Sending neighbors ASN to controller")
     with grpc.insecure_channel(controller_addr_str) as channel:
         stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
 
         local_as = border_router.local_as
         remote_as_set = border_router.remote_as_set
-        logging.info(f"Sending local AS: {local_as}, Neighbors: {remote_as_set}")
+        attached_prefixes = border_router.attached_prefixes
+        logging.info("Sending AS info message")
+        logging.info(f"Neighbors: {remote_as_set}, attached prefixes: {attached_prefixes}")
 
-        response = stub.SendNeighborsASN(controller_pb2.ASList(local_as=local_as,
-                                                               remote_as_list=remote_as_set))
+        response = stub.SendASInfo(controller_pb2.ASInfo(local_as=local_as,
+                                                         remote_as_list=remote_as_set,
+                                                         prefix_list=attached_prefixes))
 
     logging.info("Received: " + response.status)
 
-    logging.info("Sending attached prefixes to controller")
+def request_path(dest_prefix):
+
+    logging.info("Sending neighbors ASN to controller")
     with grpc.insecure_channel(controller_addr_str) as channel:
         stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
 
         local_as = border_router.local_as
-        attached_prefixes = border_router.attached_prefixes
-        logging.info(f"Sending prefixes: {attached_prefixes}")
+        logging.info(f"Requesting paths for {dest_prefix}")
 
-        response = stub.SendPrefixes(controller_pb2.PrefixList(local_as=local_as,
-                                                               prefix_list=attached_prefixes))
+        response = stub.RequestPath(controller_pb2.Destination(local_as=local_as,
+                                                               dest_prefix=dest_prefix))
 
-    logging.info("Received: " + response.status)
+        logging.info(f"Received path {response.as_path}")
+        return response.as_path
+
 
 if __name__=='__main__':
     logging.basicConfig(filename='/var/log/panbgp.log',
                         level=logging.DEBUG)
-    run()
+    send_as_info()
+    request_path('192.0.2.0/30')
+
     sys.exit(0)

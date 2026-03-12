@@ -6,7 +6,7 @@ class Node:
     def __init__(self):
         self.id = None
         # store neighbors
-        self.neighbors = set ()
+        self.neighbors = set()
 
 class ASNode(Node):
 
@@ -19,6 +19,7 @@ class ASNode(Node):
 class Graph:
 
     def __init__(self):
+        # id: object
         self.nodes = {}
 
     def add_node(self, node: Node):
@@ -66,8 +67,6 @@ class Graph:
         start_node.neighbors.remove(end_node)
         end_node.neighbors.remove(start_node)
 
-    # TODO: will need a BFS implementation
-
     def __str__(self):
         return_str = ''
         for node_id, node in self.nodes.items():
@@ -77,3 +76,32 @@ class Graph:
             return_str += f"{node_id}: {neighbor_nodes_list}\n"
         return return_str
 
+class ASGraph(Graph):
+
+    def __init__(self):
+        super().__init__()
+        self.prefix_as_table = {}
+
+    def add_node(self, node: ASNode):
+        super().add_node(node)
+        for prefix in node.prefixes:
+            self.prefix_as_table[prefix] = node.id
+
+    def find_all_paths(self, start_as: ASNode, dest_as: ASNode, path=[]):
+    # Thanks to Gemini.
+    # WARN: not fully understood however,
+    # Being recursive might also work extremely poorly on large graphs.
+
+        current_path = path.copy()
+        current_path.extend([start_as])
+
+        if start_as == dest_as:
+            return [current_path]
+
+        paths = []
+        for neighbor_as in start_as.neighbors:
+            if neighbor_as not in current_path:
+                new_paths = self.find_all_paths(neighbor_as, dest_as, current_path)
+                paths.extend(new_paths)
+
+        return paths
