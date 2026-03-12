@@ -1,3 +1,5 @@
+.dockerignore
+Dockerfile
 Makefile
 __pycache__
 venv

@@ -10,4 +10,4 @@ export CONTROLLER_PORT=50051
 
 sleep 3
 
-python3 main.py
+python3 /panbgp/main.py
