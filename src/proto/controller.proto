@@ -2,7 +2,7 @@ syntax = "proto3";
 
 service ControllerMessagingService {
   rpc SendASInfo(ASInfo) returns (ResponseStatus) {}
-  rpc RequestPath(Destination) returns (ASPath) {}
+  rpc RequestPath(Destination) returns (Paths) {}
 }
 
 message ASInfo {
@@ -13,6 +13,10 @@ message ASInfo {
 
 message ASPath {
   repeated uint32 as_path = 1;
+}
+
+message Paths{
+  repeated ASPath paths = 1;
 }
 
 message Destination {

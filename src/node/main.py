@@ -47,11 +47,18 @@ def request_path(dest_prefix):
         local_as = border_router.local_as
         logging.info(f"Requesting paths for {dest_prefix}")
 
-        response = stub.RequestPath(controller_pb2.Destination(local_as=local_as,
-                                                               dest_prefix=dest_prefix))
+        request = controller_pb2.Destination(local_as=local_as, dest_prefix=dest_prefix)
+        response = stub.RequestPath(request)
 
-        logging.info(f"Received path {response.as_path}")
-        return response.as_path
+        # Do i really need to do this or is translation automatic?
+        paths = []
+        for path in response.paths:
+            # path is an ASPath object
+            # paths.append(list(path)) # This is not working
+            paths.append(path.as_path)
+
+        logging.info(f"Received paths {paths}")
+        return paths
 
 
 if __name__=='__main__':

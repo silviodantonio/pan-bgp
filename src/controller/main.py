@@ -53,17 +53,22 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
         # check if prefix is attached to some known AS
         dest_as_id = topology_graph.prefix_as_table.get(dest_prefix)
+
         if dest_as_id is None:
             logging.info(f'No known AS owns {dest_prefix}')
-            return controller_pb2.ASPath(as_path=[])
-        dest_as = topology_graph.nodes.get(dest_as_id)
+            path = controller_pb2.ASPath(as_path=[])
+            return controller_pb2.Paths(paths=[path])
+        else:
 
-        # get all paths
-        paths = topology_graph.find_all_paths(local_as, dest_as)
-        first_path = [as_info.id for as_info in paths[0]]
+            dest_as = topology_graph.nodes.get(dest_as_id)
+            found_paths = topology_graph.find_all_paths(local_as, dest_as)
+            # Convert paths from objects to list of ids:
+            found_paths_ids = []
+            for path in found_paths:
+                found_paths_ids.append([as_info.id for as_info in path])
 
-        # TODO: get gRPC to return multiple paths
-        return controller_pb2.ASPath(as_path=first_path)
+            return controller_pb2.Paths(paths=[controller_pb2.ASPath(as_path=path) for path in found_paths_ids])
+
 
 def serve():
     port = "50051"
