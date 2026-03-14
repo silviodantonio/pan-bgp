@@ -9,6 +9,19 @@ import controller_pb2_grpc  # Contains stubs and other stuf for building the ser
 
 # known_as = {}
 
+# Get a logger instance
+logger = logging.getLogger(__name__)
+
+# Logger configuration
+logger.setLevel(logging.DEBUG)
+formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
+file_handler = logging.FileHandler("/var/log/pangbp.log")
+file_handler.setFormatter(formatter)
+
+# Tell logger to output to file.
+logger.addHandler(file_handler)
+
+
 topology_graph = graph.ASGraph()
 
 # Implementation of the stub contained in pb2_grpc
@@ -20,12 +33,12 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
         remote_as_list = request.remote_as_list
         prefix_list = request.prefix_list
 
-        logging.info(f"Received info message from {local_as}")
-        logging.debug(f"ASN: {local_as}, neighbors: {remote_as_list}, prefixes: {prefix_list}")
+        logger.info(f"Received info message from {local_as}")
+        logger.debug(f"ASN: {local_as}, neighbors: {remote_as_list}, prefixes: {prefix_list}")
 
         # if not exists, build a new node
         if local_as not in topology_graph.nodes:
-            logging.info(f"Creating new node for AS {local_as}")
+            logger.info(f"Creating new node for AS {local_as}")
             new_as = graph.ASNode()
             new_as.id = local_as
             new_as.prefixes = set(prefix_list)
@@ -34,9 +47,9 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
         # add neighbors. if unknown AS, create a new node for them
         for neighbor_as in remote_as_list:
-            logging.debug(f"Add {neighbor_as} as {local_as} neighbor")
+            logger.debug(f"Add {neighbor_as} as {local_as} neighbor")
             if neighbor_as not in topology_graph.nodes:
-                logging.debug(f"{neighbor_as} is a new AS")
+                logger.debug(f"{neighbor_as} is a new AS")
                 new_as = graph.ASNode()
                 new_as.id = neighbor_as
                 topology_graph.add_node(new_as)
@@ -49,13 +62,13 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
         local_as = topology_graph.nodes.get(request.local_as)
         dest_prefix = request.dest_prefix
 
-        logging.info(f'AS {local_as.id} requested paths for prefix {dest_prefix}')
+        logger.info(f'AS {local_as.id} requested paths for prefix {dest_prefix}')
 
         # check if prefix is attached to some known AS
         dest_as_id = topology_graph.prefix_as_table.get(dest_prefix)
 
         if dest_as_id is None:
-            logging.info(f'No known AS owns {dest_prefix}')
+            logger.info(f'No known AS owns {dest_prefix}')
             path = controller_pb2.ASPath(as_path=[])
             return controller_pb2.Paths(paths=[path])
         else:
@@ -76,11 +89,8 @@ def serve():
     controller_pb2_grpc.add_ControllerMessagingServiceServicer_to_server(ControllerMessagingService(), server)
     server.add_insecure_port("[::]:" + port)
     server.start()
-    logging.info(f"Server started, listening on {port}")
+    logger.info(f"Server started, listening on {port}")
     server.wait_for_termination()
 
 if __name__ == "__main__":
-    logging.basicConfig(filename="/var/log/pangbp.log", 
-                        format="%(asctime)s %(levelname)s %(message)s",
-                        level=logging.DEBUG)
     serve()

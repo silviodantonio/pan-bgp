@@ -1,5 +1,19 @@
 from collections import deque
 import sys
+import logging
+
+# Get a logger instance
+logger = logging.getLogger(__name__)
+
+# Logger configuration
+logger.setLevel(logging.DEBUG)
+formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
+file_handler = logging.FileHandler("/var/log/pangbp.log")
+file_handler.setFormatter(formatter)
+
+# Tell logger to output to file.
+logger.addHandler(file_handler)
+
 
 class Node:
 
@@ -86,6 +100,7 @@ class ASGraph(Graph):
         super().add_node(node)
         for prefix in node.prefixes:
             self.prefix_as_table[prefix] = node.id
+        logger.debug("New AS node in graph")
 
     def find_all_paths(self, start_as: ASNode, dest_as: ASNode, path=[]):
     # Thanks to Gemini.
