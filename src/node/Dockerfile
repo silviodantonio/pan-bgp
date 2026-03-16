@@ -5,4 +5,6 @@ ENV PIP_BREAK_SYSTEM_PACKAGES=1
 COPY requirements.txt /panbgp/
 RUN pip install --no-cache-dir -r /panbgp/requirements.txt
 
-COPY . /panbgp
+COPY ./panbgpd_node.service /etc/systemd/system/
+
+COPY ./src /panbgp

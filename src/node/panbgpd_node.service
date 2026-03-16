@@ -1,0 +1,14 @@
+[Unit]
+Description=Daemon for PANBGP nodes
+After=frr.service bgpd.service
+Requires=frr.service bgpd.service
+
+[Service]
+ExecStart=/usr/bin/python3 /panbgp/main.py
+Restart=always
+# Wait 5 seconds before trying to restart after a crash
+RestartSec=5s
+User=root
+
+[Install]
+WantedBy=multi-user.target

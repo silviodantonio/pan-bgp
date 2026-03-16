@@ -68,4 +68,6 @@ if __name__=='__main__':
     sleep(5)
     request_path('192.0.2.0/30')
 
-    sys.exit(0)
+    # since it's a daemon it doesn't need to return
+    while True:
+        sleep(1)
