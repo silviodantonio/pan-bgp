@@ -5,9 +5,6 @@ ip addr add 198.51.100.2/24 dev eth3
 
 systemctl start frr
 
-export CONTROLLER_ADDR_IPv4=198.51.100.1
-export CONTROLLER_PORT=50051
-
 sleep 3
 
 systemctl start panbgpd_node
