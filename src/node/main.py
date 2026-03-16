@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+from time import sleep # temporary import until concurrency issues are fixed
 
 import grpc
 
@@ -40,7 +41,6 @@ def send_as_info():
 
 def request_path(dest_prefix):
 
-    logging.info("Sending neighbors ASN to controller")
     with grpc.insecure_channel(controller_addr_str) as channel:
         stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
 
@@ -65,6 +65,7 @@ if __name__=='__main__':
     logging.basicConfig(filename='/var/log/panbgp.log',
                         level=logging.DEBUG)
     send_as_info()
+    sleep(5)
     request_path('192.0.2.0/30')
 
     sys.exit(0)

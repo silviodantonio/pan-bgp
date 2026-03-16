@@ -86,7 +86,7 @@ class Graph:
         for node_id, node in self.nodes.items():
             neighbor_nodes_list = []
             for neighbor in node.neighbors:
-                neighbor_nodes_list.append(neighbor.get(neighbor.id))
+                neighbor_nodes_list.append(neighbor.id)
             return_str += f"{node_id}: {neighbor_nodes_list}\n"
         return return_str
 
@@ -102,7 +102,7 @@ class ASGraph(Graph):
             self.prefix_as_table[prefix] = node.id
         logger.debug("New AS node in graph")
 
-    def find_all_paths(self, start_as: ASNode, dest_as: ASNode, path=[]):
+    def find_all_paths(self, start_as: ASNode, dest_as: ASNode, path=[]) -> list[list[ASNode]]:
     # Thanks to Gemini.
     # WARN: not fully understood however,
     # Being recursive might also work extremely poorly on large graphs.
@@ -120,3 +120,74 @@ class ASGraph(Graph):
                 paths.extend(new_paths)
 
         return paths
+
+    def reachable_nodes_from(self, start_as: ASNode) -> set[ASNode]:
+        # use bfs to explore the graph component to which start_as belongs
+        logger.debug("Computing reachable nodes")
+
+        visited = set()
+        nodes_deque = deque([start_as])
+
+        while len(nodes_deque) != 0:
+            current_node = nodes_deque.popleft()
+            if current_node not in visited:
+                visited.add(current_node)
+                for neighbor in current_node.neighbors:
+                    nodes_deque.append(neighbor)
+
+        logger.debug("Done computing reachable nodes")
+
+        return visited
+
+    def get_components(self) -> list[set[ASNode]]:
+        logger.debug("Computing graph components")
+        # Get all components of the topology graph
+
+        graph_nodes = set()
+        for as_number, as_obj in self.nodes.items():
+            graph_nodes.add(as_obj)
+
+        components = []
+
+        # while some node is left
+        while len(graph_nodes) != 0:
+            # choose randomly a node
+            starting_node = graph_nodes.pop()
+            graph_nodes.add(starting_node)
+
+            # explore the connected component
+            logging.debug("Exploring a new component")
+            connected_component = self.reachable_nodes_from(starting_node)
+            components.append(connected_component)
+            # remove the nodes of the component from the nodes left to visit
+            graph_nodes = graph_nodes.difference(connected_component)
+
+        logger.debug("Done computing graph components")
+
+        return components
+
+    def connect_components(self, l_set: set[ASNode], r_set: set[ASNode]):
+
+        logger.debug("Connecting components")
+
+        uncontrolled_l_nodes = [node for node in l_set if not node.controlled]
+        uncontrolled_r_nodes = [node for node in r_set if not node.controlled]
+
+        for l_node in uncontrolled_l_nodes:
+            for r_node in uncontrolled_r_nodes:
+                self.add_edge(l_node.id, r_node.id)
+
+        logger.debug("Done connecting components")
+
+
+    def fully_connect(self, nodes):
+        # Given a set of notes, adds edges between them in order connect them
+        # in a full mesh (clique)
+
+        # In principle, since this is an undirected graph i need to do
+        # half loop for building a full mesh. For now won't optimize for that
+
+        for current_node in nodes:
+            for new_neighbor in nodes:
+                if new_neighbor is not current_node:
+                    self.add_edge(current_node, new_neighbor)
