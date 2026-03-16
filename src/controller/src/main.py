@@ -134,7 +134,7 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
             for path in found_paths:
                 found_paths_ids.append([as_info.id for as_info in path])
 
-            logger.debug(f"Found paths:\n{found_paths}")
+            logger.debug(f"Found paths:\n{found_paths_ids}")
 
             logger.debug(f"Returning paths for {dest_prefix}")
             return controller_pb2.Paths(paths=[controller_pb2.ASPath(as_path=path) for path in found_paths_ids])
