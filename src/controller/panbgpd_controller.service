@@ -1,0 +1,13 @@
+[Unit]
+Description=Daemon for PANBGP controller
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /panbgp/main.py
+Restart=always
+# Wait 5 seconds before trying to restart after a crash
+RestartSec=5s
+User=root
+
+[Install]
+WantedBy=multi-user.target
