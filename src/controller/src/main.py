@@ -44,6 +44,7 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
             new_as.id = local_as
             new_as.prefixes = set(prefix_list)
             new_as.controlled = True
+            new_as.trusted = True
             topology_graph.add_node(new_as)
 
         # add neighbors. if unknown AS, create a new node for them
@@ -67,7 +68,8 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
         logger.info(f'AS {local_as.id} requested paths for prefix {dest_prefix}')
 
-        # check if prefix is attached to some known AS
+        # check if prefix is attached to some controlled AS
+        # Note: the controller knows prefixes only for controlled ASes
         dest_as_id = topology_graph.prefix_as_table.get(dest_prefix)
         if dest_as_id is None:
             # if it's not, return empty path list
@@ -79,7 +81,7 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
         logger.debug(f"Current AS topology: \n{topology_graph}")
 
-        #check if source_as and dest_as are in the same graph component
+        # if it is, check if there's some "direct" known path
         logger.debug(f"Computing nodes reachable from {local_as.id}")
         source_as_component = topology_graph.reachable_nodes_from(local_as)
         if dest_as in source_as_component:
@@ -98,45 +100,17 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
         else:
             logger.debug(f"AS {local_as.id} and AS {dest_as.id} belong to different components")
-            graph_components = topology_graph.get_components()
 
-            # extract components for source and dest nodes.
-            source_comp = set()
-            dest_comp = set()
-            for component in graph_components:
-                if local_as in component:
-                    source_comp = component
-                    break
-            for component in graph_components:
-                if dest_as in component:
-                    dest_comp = component
-                    break
+            # Get all paths with trusted midpoints
+            trusted_midpoints_paths = topology_graph.trusted_midpoints_paths(local_as, dest_as)
+            logger.debug(f"Computed all paths with trusted midpoints")
 
-            # Build a new graph, building fictitous connections between components
-            logger.debug(f"Connecting components of AS {local_as.id} and AS {dest_as.id}")
-            # NOTE: I really want to avoid this copy
-            working_topology_graph = copy.deepcopy(topology_graph)
-            logger.debug("Successfully copied topology graph")
-            working_topology_graph.connect_components(source_comp, dest_comp)
-
-            # Since now we are working on a copy, references to local_as and dest_as
-            # must be updated
-            local_as = working_topology_graph.nodes.get(local_as.id)
-            dest_as = working_topology_graph.nodes.get(dest_as_id)
-
-            # compute paths as before
-            logger.debug(f"Finding paths for {dest_prefix}")
-            found_paths = working_topology_graph.find_all_paths(local_as, dest_as)
-            logger.debug(f"Updated topology: \n{working_topology_graph}")
-            logger.debug(f"Source AS {local_as.id} is connected to dest AS {dest_as.id} = {dest_as in working_topology_graph.reachable_nodes_from(local_as)}")
             # Convert paths from objects to list of ids:
             found_paths_ids = []
-            for path in found_paths:
+            for path in trusted_midpoints_paths:
                 found_paths_ids.append([as_info.id for as_info in path])
 
-            logger.debug(f"Found paths:\n{found_paths_ids}")
-
-            logger.debug(f"Returning paths for {dest_prefix}")
+            logger.debug(f"Returning paths for {dest_prefix}:\n{found_paths_ids}")
             return controller_pb2.Paths(paths=[controller_pb2.ASPath(as_path=path) for path in found_paths_ids])
 
 def serve():

@@ -1,6 +1,7 @@
 from collections import deque
 import sys
 import logging
+from itertools import permutations
 
 # Get a logger instance
 logger = logging.getLogger(__name__)
@@ -27,6 +28,8 @@ class ASNode(Node):
     def __init__(self):
         super().__init__()
         self.controlled = False
+        # This has to be changed in the future
+        self.trusted = False
         self.prefixes = set()
 
 
@@ -166,6 +169,8 @@ class ASGraph(Graph):
 
         return components
 
+    # Probably this function is not really needed. The approach of connecting
+    # components is wrong
     def connect_components(self, l_set: set[ASNode], r_set: set[ASNode]):
 
         logger.debug("Connecting components")
@@ -191,3 +196,45 @@ class ASGraph(Graph):
             for new_neighbor in nodes:
                 if new_neighbor is not current_node:
                     self.add_edge(current_node, new_neighbor)
+
+    def trusted_midpoints_paths(self, start_as: ASNode, end_as: ASNode):
+        logger.debug("Computing paths with trusted midponts")
+        # If it doesn't exist a third trusted midpoint, this function
+        # doesn't return anything.
+
+        trusted_ases = []
+
+        for node_id, node_obj in self.nodes.items():
+            if node_obj.trusted:
+                trusted_ases.append(node_obj)
+
+        logger.debug("Got list of trusted ASes")
+
+        # Since i can assume an AS can reach any other AS, that means
+        # that i can think of them as connected by a full mesh.
+        # That means that computing a path mans computing a permutation of
+        # ASes of desired length
+
+        # remove source_as and end_as
+        if start_as in trusted_ases:
+            trusted_ases.remove(start_as)
+        if end_as in trusted_ases:
+            trusted_ases.remove(end_as)
+
+        logger.debug("Removed start AS and end AS from trusted list")
+
+        paths = []
+        if len(trusted_ases) > 0:
+            # keeping this since i think it will be useful to have
+            # permutations of different lengths.
+            paths = [deque(permutation) for permutation in permutations(trusted_ases, r=len(trusted_ases))]
+
+        logger.debug("Computed all permutations")
+
+        for path in paths:
+            path.appendleft(start_as)
+            path.append(end_as)
+
+        logger.debug("Added back start_as and end_as to permutations")
+
+        return paths
