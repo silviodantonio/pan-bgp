@@ -1,0 +1,5 @@
+ip addr add 192.0.2.43/29 dev eth0
+ip addr add 198.51.100.49/29 dev eth1
+ip addr add 198.51.100.57/29 dev eth2
+
+systemctl start frr
