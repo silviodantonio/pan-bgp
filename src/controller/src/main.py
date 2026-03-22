@@ -61,8 +61,6 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
     def RequestPath(self, request, context):
 
-        # TODO: this function contains duplicate code, can be shortened.
-
         # Extract data from request message
         dest_prefix = request.destination.dest_prefix
         local_as_id = request.destination.local_as
@@ -72,14 +70,15 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
         logger.info(f'AS {local_as.id} requested {number_paths} paths for prefix {dest_prefix} with policy {policy}')
 
+        found_paths=[]
+
         # check if prefix is attached to some controlled AS
         # Note: the controller knows prefixes only for controlled ASes
         dest_as_id = topology_graph.prefix_as_table.get(dest_prefix)
         if dest_as_id is None:
             # if it's not, return empty path list
             logger.info(f'No known AS owns {dest_prefix}')
-            path = controller_pb2.ASPath(as_path=[])
-            return controller_pb2.Paths(paths=[path])
+            return controller_pb2.Paths(paths=[controller_pb2.ASPath(as_path=[])])
 
         dest_as = topology_graph.nodes.get(dest_as_id)
 
@@ -91,38 +90,28 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
         if dest_as in source_as_component:
             logger.debug(f"AS {local_as.id} and AS {dest_as.id} belong to the same component")
 
-            # If so, search for a path
+            # If so, get all paths
             logger.debug(f"Finding paths for {dest_prefix}")
             found_paths = topology_graph.find_all_paths(local_as, dest_as)
-
-            # Pick the number of paths requested
-            found_paths = found_paths[:number_paths]
-
-            # Convert paths from objects to list of ids:
-            found_paths_ids = []
-            for path in found_paths:
-                found_paths_ids.append([as_info.id for as_info in path])
-
-            logger.debug(f"Returning paths for {dest_prefix}")
-            return controller_pb2.Paths(paths=[controller_pb2.ASPath(as_path=path) for path in found_paths_ids])
 
         else:
             logger.debug(f"AS {local_as.id} and AS {dest_as.id} belong to different components")
 
             # Get all paths with trusted midpoints
-            trusted_midpoints_paths = topology_graph.trusted_midpoints_paths(local_as, dest_as)
+            found_paths = topology_graph.trusted_midpoints_paths(local_as, dest_as)
             logger.debug(f"Computed all paths with trusted midpoints")
 
-            # Pick the number of paths requested
-            found_paths = trusted_midpoints_paths[:number_paths]
+        # Pick the number of paths requested
+        found_paths = found_paths[:number_paths]
 
-            # Convert paths from objects to list of ids:
-            found_paths_ids = []
-            for path in found_paths:
-                found_paths_ids.append([as_info.id for as_info in path])
+        # Convert paths from objects to list of ids:
+        found_paths_ids = []
+        for path in found_paths:
+            found_paths_ids.append([as_info.id for as_info in path])
 
-            logger.debug(f"Returning paths for {dest_prefix}:\n{found_paths_ids}")
-            return controller_pb2.Paths(paths=[controller_pb2.ASPath(as_path=path) for path in found_paths_ids])
+        logger.debug(f"Returning paths for {dest_prefix}:\n{found_paths_ids}")
+        # Return a list of ASPaths. Each ASPath is a list of ASN
+        return controller_pb2.Paths(paths=[controller_pb2.ASPath(as_path=path) for path in found_paths_ids])
 
 def serve():
     port = "50051"
