@@ -24,4 +24,4 @@ if __name__=='__main__':
     # is this enough to induce an endless loop?
     socket_interface.start()
     sleep(5)
-    controller_interface.request_path('192.0.2.0/30')
+    controller_interface.request_path('192.0.2.0/30', 'none', 5)

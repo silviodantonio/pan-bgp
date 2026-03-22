@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10\x63ontroller.proto\"G\n\x06\x41SInfo\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x16\n\x0eremote_as_list\x18\x02 \x03(\r\x12\x13\n\x0bprefix_list\x18\x03 \x03(\t\"\x19\n\x06\x41SPath\x12\x0f\n\x07\x61s_path\x18\x01 \x03(\r\"\x1f\n\x05Paths\x12\x16\n\x05paths\x18\x01 \x03(\x0b\x32\x07.ASPath\"4\n\x0b\x44\x65stination\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x13\n\x0b\x64\x65st_prefix\x18\x02 \x01(\t\" \n\x0eResponseStatus\x12\x0e\n\x06status\x18\x01 \x01(\t2m\n\x1a\x43ontrollerMessagingService\x12(\n\nSendASInfo\x12\x07.ASInfo\x1a\x0f.ResponseStatus\"\x00\x12%\n\x0bRequestPath\x12\x0c.Destination\x1a\x06.Paths\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10\x63ontroller.proto\"G\n\x06\x41SInfo\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x16\n\x0eremote_as_list\x18\x02 \x03(\r\x12\x13\n\x0bprefix_list\x18\x03 \x03(\t\"i\n\x12RequestPathMessage\x12!\n\x0b\x64\x65stination\x18\x01 \x01(\x0b\x32\x0c.Destination\x12\x17\n\x06policy\x18\x02 \x01(\x0b\x32\x07.Policy\x12\x17\n\x0fnumber_of_paths\x18\x03 \x01(\r\"4\n\x0b\x44\x65stination\x12\x10\n\x08local_as\x18\x01 \x01(\r\x12\x13\n\x0b\x64\x65st_prefix\x18\x02 \x01(\t\"\x18\n\x06Policy\x12\x0e\n\x06policy\x18\x01 \x01(\t\"\x19\n\x06\x41SPath\x12\x0f\n\x07\x61s_path\x18\x01 \x03(\r\"\x1f\n\x05Paths\x12\x16\n\x05paths\x18\x01 \x03(\x0b\x32\x07.ASPath\" \n\x0eResponseStatus\x12\x0e\n\x06status\x18\x01 \x01(\t2t\n\x1a\x43ontrollerMessagingService\x12(\n\nSendASInfo\x12\x07.ASInfo\x1a\x0f.ResponseStatus\"\x00\x12,\n\x0bRequestPath\x12\x13.RequestPathMessage\x1a\x06.Paths\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,14 +33,18 @@ if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_ASINFO']._serialized_start=20
   _globals['_ASINFO']._serialized_end=91
-  _globals['_ASPATH']._serialized_start=93
-  _globals['_ASPATH']._serialized_end=118
-  _globals['_PATHS']._serialized_start=120
-  _globals['_PATHS']._serialized_end=151
-  _globals['_DESTINATION']._serialized_start=153
-  _globals['_DESTINATION']._serialized_end=205
-  _globals['_RESPONSESTATUS']._serialized_start=207
-  _globals['_RESPONSESTATUS']._serialized_end=239
-  _globals['_CONTROLLERMESSAGINGSERVICE']._serialized_start=241
-  _globals['_CONTROLLERMESSAGINGSERVICE']._serialized_end=350
+  _globals['_REQUESTPATHMESSAGE']._serialized_start=93
+  _globals['_REQUESTPATHMESSAGE']._serialized_end=198
+  _globals['_DESTINATION']._serialized_start=200
+  _globals['_DESTINATION']._serialized_end=252
+  _globals['_POLICY']._serialized_start=254
+  _globals['_POLICY']._serialized_end=278
+  _globals['_ASPATH']._serialized_start=280
+  _globals['_ASPATH']._serialized_end=305
+  _globals['_PATHS']._serialized_start=307
+  _globals['_PATHS']._serialized_end=338
+  _globals['_RESPONSESTATUS']._serialized_start=340
+  _globals['_RESPONSESTATUS']._serialized_end=372
+  _globals['_CONTROLLERMESSAGINGSERVICE']._serialized_start=374
+  _globals['_CONTROLLERMESSAGINGSERVICE']._serialized_end=490
 # @@protoc_insertion_point(module_scope)

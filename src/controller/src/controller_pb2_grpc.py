@@ -41,7 +41,7 @@ class ControllerMessagingServiceStub(object):
                 _registered_method=True)
         self.RequestPath = channel.unary_unary(
                 '/ControllerMessagingService/RequestPath',
-                request_serializer=controller__pb2.Destination.SerializeToString,
+                request_serializer=controller__pb2.RequestPathMessage.SerializeToString,
                 response_deserializer=controller__pb2.Paths.FromString,
                 _registered_method=True)
 
@@ -71,7 +71,7 @@ def add_ControllerMessagingServiceServicer_to_server(servicer, server):
             ),
             'RequestPath': grpc.unary_unary_rpc_method_handler(
                     servicer.RequestPath,
-                    request_deserializer=controller__pb2.Destination.FromString,
+                    request_deserializer=controller__pb2.RequestPathMessage.FromString,
                     response_serializer=controller__pb2.Paths.SerializeToString,
             ),
     }
@@ -127,7 +127,7 @@ class ControllerMessagingService(object):
             request,
             target,
             '/ControllerMessagingService/RequestPath',
-            controller__pb2.Destination.SerializeToString,
+            controller__pb2.RequestPathMessage.SerializeToString,
             controller__pb2.Paths.FromString,
             options,
             channel_credentials,

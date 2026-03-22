@@ -63,10 +63,14 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
         # TODO: this function contains duplicate code, can be shortened.
 
-        local_as = topology_graph.nodes.get(request.local_as)
-        dest_prefix = request.dest_prefix
+        # Extract data from request message
+        dest_prefix = request.destination.dest_prefix
+        local_as_id = request.destination.local_as
+        local_as = topology_graph.nodes.get(local_as_id)
+        policy = request.policy.policy
+        number_paths = request.number_of_paths
 
-        logger.info(f'AS {local_as.id} requested paths for prefix {dest_prefix}')
+        logger.info(f'AS {local_as.id} requested {number_paths} paths for prefix {dest_prefix} with policy {policy}')
 
         # check if prefix is attached to some controlled AS
         # Note: the controller knows prefixes only for controlled ASes
@@ -90,6 +94,10 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
             # If so, search for a path
             logger.debug(f"Finding paths for {dest_prefix}")
             found_paths = topology_graph.find_all_paths(local_as, dest_as)
+
+            # Pick the number of paths requested
+            found_paths = found_paths[:number_paths]
+
             # Convert paths from objects to list of ids:
             found_paths_ids = []
             for path in found_paths:
@@ -105,9 +113,12 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
             trusted_midpoints_paths = topology_graph.trusted_midpoints_paths(local_as, dest_as)
             logger.debug(f"Computed all paths with trusted midpoints")
 
+            # Pick the number of paths requested
+            found_paths = trusted_midpoints_paths[:number_paths]
+
             # Convert paths from objects to list of ids:
             found_paths_ids = []
-            for path in trusted_midpoints_paths:
+            for path in found_paths:
                 found_paths_ids.append([as_info.id for as_info in path])
 
             logger.debug(f"Returning paths for {dest_prefix}:\n{found_paths_ids}")

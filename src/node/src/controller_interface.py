@@ -43,7 +43,8 @@ def send_as_info():
 
     logger.info("Received: " + response.status)
 
-def request_path(dest_prefix):
+def request_path(dest_prefix: str, policy: str, k: int):
+    # WARN: at the moment controller ignores completely the policy.
 
     with grpc.insecure_channel(controller_addr_str) as channel:
         stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
@@ -51,14 +52,15 @@ def request_path(dest_prefix):
         local_as = border_router.local_as
         logger.info(f"Requesting paths for {dest_prefix}")
 
-        request = controller_pb2.Destination(local_as=local_as, dest_prefix=dest_prefix)
+        destination_prefix = controller_pb2.Destination(local_as=local_as, dest_prefix=dest_prefix)
+        policy = controller_pb2.Policy(policy=policy)
+        request = controller_pb2.RequestPathMessage(destination=destination_prefix,
+                                                    policy=policy, number_of_paths=k)
         response = stub.RequestPath(request)
 
-        # Do i really need to do this or is translation automatic?
         paths = []
         for path in response.paths:
-            # path is an ASPath object
-            # paths.append(list(path)) # This is not working
+            # path is a ASPath object
             paths.append(path.as_path)
 
         logger.info(f"Received paths {paths}")
