@@ -4,9 +4,6 @@ ip addr add 198.51.100.4/21 dev eth2
 
 systemctl start frr
 
-export CONTROLLER_ADDR_IPv4=198.51.100.1
-export CONTROLLER_PORT=50051
-
 sleep 3
 
-python3 /panbgp/main.py
+systemctl start panbgpd_node
