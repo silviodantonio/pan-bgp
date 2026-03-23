@@ -36,10 +36,16 @@ def serve_client(conn, addr):
             # Commands
             if tokens[0] == 'paths':
                 prefix = tokens[1]
-                paths = controller_interface.request_path(prefix)
-                response = f"requested paths for prefix {prefix}: {paths}"
+                policy = tokens[2]
+                num = int(tokens[3])
+                try:
+                    logger.debug(f"Sending a request for {prefix}")
+                    paths = controller_interface.request_path(prefix, policy, num)
+                    response = f"Paths for prefix {prefix}: {paths}"
+                except:
+                    logger.debug("Something went wrong while sending the request")
             elif tokens[0] == 'help':
-                response = "paths <prefix>"
+                response = "paths <prefix> <policy> <num>"
             else:
                 response = f"Unknown command: {tokens[0]}"
 
