@@ -1,27 +1,18 @@
 from concurrent import futures
-import logging
 import copy
 
 import grpc
 
 import graph
+import config
+import utils
 import controller_pb2       # Contains message type definitions
 import controller_pb2_grpc  # Contains stubs and other stuf for building the server
 
 # known_as = {}
 
-# Get a logger instance
-logger = logging.getLogger(__name__)
-
-# Logger configuration
-logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
-file_handler = logging.FileHandler("/var/log/pangbp.log")
-file_handler.setFormatter(formatter)
-
-# Tell logger to output to file.
-logger.addHandler(file_handler)
-
+# Get a pre-configured logger instance
+logger = utils.get_logger(__name__)
 
 topology_graph = graph.ASGraph()
 
@@ -48,6 +39,7 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
             topology_graph.add_node(new_as)
 
         # add neighbors. if unknown AS, create a new node for them
+        # Maybe the information about neighbors is not really needed
         for neighbor_as in remote_as_list:
             logger.debug(f"Add {neighbor_as} as {local_as} neighbor")
             if neighbor_as not in topology_graph.nodes:
@@ -73,13 +65,12 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
         found_paths=[]
 
         # check if prefix is attached to some controlled AS
-        # Note: the controller knows prefixes only for controlled ASes
+        # NOTE: the controller knows prefixes only for controlled ASes
         dest_as_id = topology_graph.prefix_as_table.get(dest_prefix)
         if dest_as_id is None:
             # if it's not, return empty path list
             logger.info(f'No known AS owns {dest_prefix}')
             return controller_pb2.Paths(paths=[controller_pb2.ASPath(as_path=[])])
-
         dest_as = topology_graph.nodes.get(dest_as_id)
 
         logger.debug(f"Current AS topology: \n{topology_graph}")
@@ -113,8 +104,7 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
         # Return a list of ASPaths. Each ASPath is a list of ASN
         return controller_pb2.Paths(paths=[controller_pb2.ASPath(as_path=path) for path in found_paths_ids])
 
-def serve():
-    port = "50051"
+def serve(port):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     controller_pb2_grpc.add_ControllerMessagingServiceServicer_to_server(ControllerMessagingService(), server)
     server.add_insecure_port("[::]:" + port)
@@ -123,4 +113,6 @@ def serve():
     server.wait_for_termination()
 
 if __name__ == "__main__":
-    serve()
+    config_data = config.load_config_file("/etc/panbgp/panbgp.conf")
+    port = config_data['controller']['port']
+    serve(port)

@@ -1,20 +1,11 @@
 from collections import deque
 import sys
-import logging
 from itertools import permutations
 
+import utils
+
 # Get a logger instance
-logger = logging.getLogger(__name__)
-
-# Logger configuration
-logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
-file_handler = logging.FileHandler("/var/log/pangbp.log")
-file_handler.setFormatter(formatter)
-
-# Tell logger to output to file.
-logger.addHandler(file_handler)
-
+logger = utils.get_logger(__name__)
 
 class Node:
 
