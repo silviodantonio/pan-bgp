@@ -14,12 +14,11 @@ class Node:
         # store neighbors
         self.neighbors = set()
 
-class ASNode(Node):
+class AS(Node):
 
     def __init__(self):
         super().__init__()
         self.controlled = False
-        # This has to be changed in the future
         self.trusted = False
         self.prefixes = set()
 
@@ -90,16 +89,16 @@ class ASGraph(Graph):
         super().__init__()
         self.prefix_as_table = {}
 
-    def add_node(self, node: ASNode):
+    def add_node(self, node: AS):
         super().add_node(node)
         for prefix in node.prefixes:
             self.prefix_as_table[prefix] = node.id
         logger.debug("New AS node in graph")
 
-    def find_all_paths(self, start_as: ASNode, dest_as: ASNode, path=[]) -> list[list[ASNode]]:
+    def find_all_paths(self, start_as: AS, dest_as: AS, path=[]) -> list[list[AS]]:
     # Thanks to Gemini.
-    # WARN: not fully understood however,
-    # Being recursive might also work extremely poorly on large graphs.
+    # WARN: not fully understood and
+    # being recursive might also work extremely poorly on large graphs.
 
         current_path = path.copy()
         current_path.extend([start_as])
@@ -115,7 +114,29 @@ class ASGraph(Graph):
 
         return paths
 
-    def reachable_nodes_from(self, start_as: ASNode) -> set[ASNode]:
+    def _find_trusted_paths(self, start_as: AS, dest_as: AS, path=[]) -> list[list[AS]]:
+    # Thanks to Gemini part II (this code is copied from find_all_paths)
+
+        as_trusted_peers = [as_peer for as_peer in start_as.neighbors if as_peer.trusted]
+
+        current_path = path.copy()
+        current_path.extend([start_as])
+
+        if start_as == dest_as:
+            return [current_path]
+
+        paths = []
+        for as_trusted_peer in as_trusted_peers:
+            if as_trusted_peer not in current_path:
+                new_paths = self.find_all_paths(as_trusted_peer, dest_as, current_path)
+                paths.extend(new_paths)
+
+        return paths
+
+    def find_trusted_paths(self, start_as:AS, dest_as: AS) -> list[list[AS]]:
+        return self._find_trudted_paths(start_as, dest_as, [])
+
+    def reachable_nodes_from(self, start_as: AS) -> set[AS]:
         # use bfs to explore the graph component to which start_as belongs
         logger.debug("Computing reachable nodes")
 
@@ -133,7 +154,7 @@ class ASGraph(Graph):
 
         return visited
 
-    def get_components(self) -> list[set[ASNode]]:
+    def get_components(self) -> list[set[AS]]:
         logger.debug("Computing graph components")
         # Get all components of the topology graph
 
@@ -162,7 +183,7 @@ class ASGraph(Graph):
 
     # Probably this function is not really needed. The approach of connecting
     # components is wrong
-    def connect_components(self, l_set: set[ASNode], r_set: set[ASNode]):
+    def connect_components(self, l_set: set[AS], r_set: set[AS]):
 
         logger.debug("Connecting components")
 
@@ -188,10 +209,9 @@ class ASGraph(Graph):
                 if new_neighbor is not current_node:
                     self.add_edge(current_node, new_neighbor)
 
-    def trusted_midpoints_paths(self, start_as: ASNode, end_as: ASNode):
-        logger.debug("Computing paths with trusted midponts")
-        # If it doesn't exist a third trusted midpoint, this function
-        # doesn't return anything.
+    def trusted_midpoints_sequences(self, start_as: AS, end_as: AS, num=None):
+
+        logger.debug("Attempting to compute sequence of trusted midponts")
 
         trusted_ases = []
 
@@ -211,14 +231,22 @@ class ASGraph(Graph):
             trusted_ases.remove(start_as)
         if end_as in trusted_ases:
             trusted_ases.remove(end_as)
-
         logger.debug("Removed start AS and end AS from trusted list")
 
-        paths = []
-        if len(trusted_ases) > 0:
-            # keeping this since i think it will be useful to have
-            # permutations of different lengths.
-            paths = [deque(permutation) for permutation in permutations(trusted_ases, r=len(trusted_ases))]
+        if len(trusted_ases) == 0:
+            return []
+
+        if num is not None:
+            # check that i have enough trusted AS to compute midpoints
+            if len(trusted_ases) < num:
+                return []
+        else:
+            # num was none, so use all trusted ASes
+            num = len(trusted_ases)
+
+        logger.debug(f"Computing sequences of {num} trusted midponts")
+        # computing all sequences of trusted ASes
+        paths = [deque(permutation) for permutation in permutations(trusted_ases, r=num)]
 
         logger.debug("Computed all permutations")
 

@@ -75,22 +75,29 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
         logger.debug(f"Current AS topology: \n{topology_graph}")
 
-        # if it is, check if there's some "direct" known path
-        logger.debug(f"Computing nodes reachable from {local_as.id}")
-        source_as_component = topology_graph.reachable_nodes_from(local_as)
-        if dest_as in source_as_component:
-            logger.debug(f"AS {local_as.id} and AS {dest_as.id} belong to the same component")
+        # NOTE: other two policies to add could be:
+        # controlled_paths, controlled_midpoints.
 
-            # If so, get all paths
-            logger.debug(f"Finding paths for {dest_prefix}")
-            found_paths = topology_graph.find_all_paths(local_as, dest_as)
+        # attempt to populate the found_paths list.
+        if policy == 'trusted_paths':
+
+            source_as_component = topology_graph.reachable_nodes_from(local_as)
+            if dest_as in source_as_component:
+                logger.debug(f"AS {local_as.id} and AS {dest_as.id} belong to the same component")
+
+                # If so, get all trusted paths
+                logger.debug(f"Finding chain of trusted ASes for {dest_prefix}")
+                found_paths = topology_graph.find_trusted_paths(local_as, dest_as)
+
+        # Here there's an open question on the number of midpoints to return
+        elif policy == 'trusted_midpoints':
+
+                # Get all paths with trusted midpoints
+                found_paths = topology_graph.trusted_midpoints_sequences(local_as, dest_as)
+                logger.debug(f"Computed all paths with trusted midpoints")
 
         else:
-            logger.debug(f"AS {local_as.id} and AS {dest_as.id} belong to different components")
-
-            # Get all paths with trusted midpoints
-            found_paths = topology_graph.trusted_midpoints_paths(local_as, dest_as)
-            logger.debug(f"Computed all paths with trusted midpoints")
+            logger.info("Unknown policy")
 
         # Pick the number of paths requested
         found_paths = found_paths[:number_paths]
