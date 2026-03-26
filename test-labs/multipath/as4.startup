@@ -1,4 +1,8 @@
 ip addr add 192.0.2.18/30 dev eth0
 ip addr add 192.0.2.21/30 dev eth1
+ip addr add 198.51.100.4/24 dev eth2
 
 systemctl start frr
+
+# sleep3
+# systemctl start pangbpd_node
