@@ -14,6 +14,13 @@ logger.addHandler(file_handler)
 
 config_data = config.load_config_file("/etc/panbgp/node.conf")
 
+HELP_MESSAGE = """\
+help                                print this message
+paths <prefix> <policy> <num>       request <num> paths for <prefix>, satisfying <policy>
+
+policies: trusted_midpoints, trusted_paths
+"""
+
 # This way of getting config info can break everything
 HOST = config_data['interactive_interface']['address']
 PORT = config_data['interactive_interface']['port']
@@ -45,7 +52,7 @@ def serve_client(conn, addr):
                 except:
                     logger.debug("Something went wrong while sending the request")
             elif tokens[0] == 'help':
-                response = "paths <prefix> <policy> <num>"
+                response = HELP_MESSAGE
             else:
                 response = f"Unknown command: {tokens[0]}"
 

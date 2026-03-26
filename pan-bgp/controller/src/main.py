@@ -31,7 +31,7 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
         # if not exists, build a new node
         if local_as not in topology_graph.nodes:
             logger.info(f"Creating new node for AS {local_as}")
-            new_as = graph.ASNode()
+            new_as = graph.AS()
             new_as.id = local_as
             new_as.prefixes = set(prefix_list)
             new_as.controlled = True
@@ -44,7 +44,7 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
             logger.debug(f"Add {neighbor_as} as {local_as} neighbor")
             if neighbor_as not in topology_graph.nodes:
                 logger.debug(f"{neighbor_as} is a new AS")
-                new_as = graph.ASNode()
+                new_as = graph.AS()
                 new_as.id = neighbor_as
                 topology_graph.add_node(new_as)
             topology_graph.add_edge(local_as, neighbor_as)
@@ -112,6 +112,9 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
         return controller_pb2.Paths(paths=[controller_pb2.ASPath(as_path=path) for path in found_paths_ids])
 
 def serve(port):
+    # ensure that port is a string
+    port = str(port)
+
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     controller_pb2_grpc.add_ControllerMessagingServiceServicer_to_server(ControllerMessagingService(), server)
     server.add_insecure_port("[::]:" + port)
