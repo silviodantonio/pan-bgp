@@ -5,6 +5,4 @@ ip addr add 198.51.100.1/24 dev eth3
 
 systemctl start frr
 
-sleep 3
-
 systemctl start panbgpd_node
