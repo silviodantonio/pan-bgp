@@ -19,9 +19,18 @@ logger.addHandler(file_handler)
 
 
 if __name__=='__main__':
+
+    controller = controller_interface.Controller()
+
     # Here should go a "attempt to reconnect loop"
-    controller_interface.send_as_info()
+    try:
+        controller.send_as_info()
+    except Exception as e: 
+        logger.debug(f"An exception occurred while sending AS info: {e}")
     # is this enough to induce an endless loop?
     socket_interface.start()
-    sleep(5)
-    controller_interface.request_path('192.0.2.0/30', 'none', 5)
+    # sleep(5)
+    try:
+        controller.request_path('192.0.2.0/30', 'none', 5)
+    except Exception as e: 
+        logger.debug(f"An exception occurred while sending AS info: {e}")
