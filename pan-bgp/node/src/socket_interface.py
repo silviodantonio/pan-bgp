@@ -18,12 +18,14 @@ HELP_MESSAGE = """\
 help                                print this message
 paths <prefix> <policy> <num>       request <num> paths for <prefix>, satisfying <policy>
 
-policies: trusted_midpoints, trusted_paths
+policies: trusted_paths
 """
 
 # This way of getting config info can break everything
 HOST = config_data['interactive_interface']['address']
 PORT = config_data['interactive_interface']['port']
+
+controller = controller_interface.Controller()
 
 # Thanks to gemini
 def serve_client(conn, addr):
@@ -46,11 +48,11 @@ def serve_client(conn, addr):
                 policy = tokens[2]
                 num = int(tokens[3])
                 try:
-                    logger.debug(f"Sending a request for {prefix}")
-                    paths = controller_interface.request_path(prefix, policy, num)
+                    logger.debug(f"Requesting {num} pahts for {prefix} with policy {policy}")
+                    paths = controller.request_path(prefix, policy, num)
                     response = f"Paths for prefix {prefix}: {paths}"
-                except:
-                    logger.debug("Something went wrong while sending the request")
+                except Exception as e:
+                    logger.debug(f"Something went wrong while sending the request: {e}")
             elif tokens[0] == 'help':
                 response = HELP_MESSAGE
             else:
@@ -78,6 +80,7 @@ def accept_connections():
         # Serve one client at a time
         serve_client(conn, addr)
 
+# Why this is here?
 def start() -> threading.Thread:
     thread = threading.Thread(target=accept_connections)
     thread.start()

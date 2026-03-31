@@ -116,6 +116,8 @@ class ASGraph(Graph):
 
     def _find_trusted_paths(self, start_as: AS, dest_as: AS, path=[]) -> list[list[AS]]:
     # Thanks to Gemini part II (this code is copied from find_all_paths)
+    # I don't fully understand what's happening here and what is being passed during
+    # the recursion.
 
         as_trusted_peers = [as_peer for as_peer in start_as.neighbors if as_peer.trusted]
 
@@ -128,13 +130,13 @@ class ASGraph(Graph):
         paths = []
         for as_trusted_peer in as_trusted_peers:
             if as_trusted_peer not in current_path:
-                new_paths = self.find_all_paths(as_trusted_peer, dest_as, current_path)
+                new_paths = self._find_trusted_paths(as_trusted_peer, dest_as, current_path)
                 paths.extend(new_paths)
 
         return paths
 
-    def find_trusted_paths(self, start_as:AS, dest_as: AS) -> list[list[AS]]:
-        return self._find_trudted_paths(start_as, dest_as, [])
+    def find_trusted_paths(self, start_as: AS, dest_as: AS) -> list[list[AS]]:
+        return self._find_trusted_paths(start_as, dest_as, [])
 
     def reachable_nodes_from(self, start_as: AS) -> set[AS]:
         # use bfs to explore the graph component to which start_as belongs
@@ -143,9 +145,12 @@ class ASGraph(Graph):
         visited = set()
         nodes_deque = deque([start_as])
 
+        # while i have some nodes to visit
         while len(nodes_deque) != 0:
+            # get the current node
             current_node = nodes_deque.popleft()
             if current_node not in visited:
+                # if it's a new node
                 visited.add(current_node)
                 for neighbor in current_node.neighbors:
                     nodes_deque.append(neighbor)

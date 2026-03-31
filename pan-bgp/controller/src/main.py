@@ -16,6 +16,44 @@ logger = utils.get_logger(__name__)
 
 topology_graph = graph.ASGraph()
 
+# Maybe return ids instead of AS objects?
+def request_path(topology_graph: graph.ASGraph, source_as: graph.AS, dest_prefix: str, policy: str, num: int) -> list[list[graph.AS]]:
+
+        found_paths = []
+
+        # Check if the destination prefix is known
+        dest_as_id = topology_graph.prefix_as_table.get(dest_prefix)
+        if dest_as_id is None:
+            logger.info(f'No known AS owns {dest_prefix}')
+            return found_paths
+        # Get dest_as object from topology graph
+        dest_as = topology_graph.nodes.get(dest_as_id)
+
+        logger.debug(f"Current AS topology: \n{topology_graph}")
+
+        # NOTE: other two policies to add could be:
+        # controlled_paths, controlled_midpoints.
+
+        # attempt to populate the found_paths list.
+        if policy == 'trusted_paths':
+
+            source_as_component = topology_graph.reachable_nodes_from(source_as)
+            if dest_as in source_as_component:
+                logger.debug(f"AS {source_as.id} and AS {dest_as.id} belong to the same component")
+                # Then there's some hope to find some paths.
+                logger.debug(f"Finding chain of trusted ASes for {dest_prefix}")
+                found_paths = topology_graph.find_trusted_paths(source_as, dest_as)
+
+        else:
+            # return empty list
+            logger.info("Unknown policy")
+
+        # Pick the number of paths requested
+        found_paths = found_paths[:num]
+
+        return found_paths
+
+
 # Implementation of the stub contained in pb2_grpc
 class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceServicer):
 
@@ -38,16 +76,12 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
             new_as.trusted = True
             topology_graph.add_node(new_as)
 
-        # add neighbors. if unknown AS, create a new node for them
-        # Maybe the information about neighbors is not really needed
+        # Add edges for known neighbors
         for neighbor_as in remote_as_list:
-            logger.debug(f"Add {neighbor_as} as {local_as} neighbor")
-            if neighbor_as not in topology_graph.nodes:
-                logger.debug(f"{neighbor_as} is a new AS")
-                new_as = graph.AS()
-                new_as.id = neighbor_as
-                topology_graph.add_node(new_as)
-            topology_graph.add_edge(local_as, neighbor_as)
+            if neighbor_as in topology_graph.nodes:
+                logger.debug(f"{local_as} has known neighbor {neighbor_as}")
+                logger.debug(f"Add edge {local_as}, {neighbor_as}")
+                topology_graph.add_edge(local_as, neighbor_as)
 
         return controller_pb2.ResponseStatus(status="OK")
 
@@ -62,45 +96,8 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
         logger.info(f'AS {local_as.id} requested {number_paths} paths for prefix {dest_prefix} with policy {policy}')
 
-        found_paths=[]
 
-        # check if prefix is attached to some controlled AS
-        # NOTE: the controller knows prefixes only for controlled ASes
-        dest_as_id = topology_graph.prefix_as_table.get(dest_prefix)
-        if dest_as_id is None:
-            # if it's not, return empty path list
-            logger.info(f'No known AS owns {dest_prefix}')
-            return controller_pb2.Paths(paths=[controller_pb2.ASPath(as_path=[])])
-        dest_as = topology_graph.nodes.get(dest_as_id)
-
-        logger.debug(f"Current AS topology: \n{topology_graph}")
-
-        # NOTE: other two policies to add could be:
-        # controlled_paths, controlled_midpoints.
-
-        # attempt to populate the found_paths list.
-        if policy == 'trusted_paths':
-
-            source_as_component = topology_graph.reachable_nodes_from(local_as)
-            if dest_as in source_as_component:
-                logger.debug(f"AS {local_as.id} and AS {dest_as.id} belong to the same component")
-
-                # If so, get all trusted paths
-                logger.debug(f"Finding chain of trusted ASes for {dest_prefix}")
-                found_paths = topology_graph.find_trusted_paths(local_as, dest_as)
-
-        # Here there's an open question on the number of midpoints to return
-        elif policy == 'trusted_midpoints':
-
-                # Get all paths with trusted midpoints
-                found_paths = topology_graph.trusted_midpoints_sequences(local_as, dest_as)
-                logger.debug(f"Computed all paths with trusted midpoints")
-
-        else:
-            logger.info("Unknown policy")
-
-        # Pick the number of paths requested
-        found_paths = found_paths[:number_paths]
+        found_paths = request_path(topology_graph, local_as, dest_prefix, policy, number_paths)
 
         # Convert paths from objects to list of ids:
         found_paths_ids = []

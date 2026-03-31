@@ -53,6 +53,7 @@ def retry_with_rand_backoff(function):
 
             except Exception as e:
             # if something goes wrong, retry after some time
+                logger.debug(f"Controller raised an exception: {e}")
                 if attempt < max_attempts:
                     t = random.random() * min(wait_time, max_wait_time)
                     logger.debug(f"Attempt number {attempt+1}, retrying after {t}")
