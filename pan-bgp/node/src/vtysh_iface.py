@@ -1,3 +1,4 @@
+import logging
 import subprocess as sp
 import json
 
@@ -6,6 +7,8 @@ This module is responsible for interfacing with `vtysh`, the unified interface
 for managing frr and all its supported daemons.
 `vtysh` is used for getting information about bgp peers and paths
 """
+
+logger = logging.getLogger(__name__)
 
 def call_vtysh(vtysh_command):
 
@@ -16,9 +19,7 @@ def call_vtysh(vtysh_command):
             command_out = completed_proc.stdout
 
         except sp.CalledProcessError as proc_err:
-            # TODO: change this part into logging
-            print("Couldn't invoke vtysh")
-            print(proc_err)
+            logging.critical(f"Couldn't interact with frr: {proc_err}")
 
         finally:
             return command_out

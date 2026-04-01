@@ -2,17 +2,9 @@ import socket
 import threading
 import logging
 
-import config
-import controller_interface
+import controller as ctrl
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
-file_handler = logging.FileHandler("/var/log/pangbp.log")
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
-
-config_data = config.load_config_file("/etc/panbgp/node.conf")
 
 HELP_MESSAGE = """\
 help                                print this message
@@ -21,14 +13,8 @@ paths <prefix> <policy> <num>       request <num> paths for <prefix>, satisfying
 policies: trusted_paths
 """
 
-# This way of getting config info can break everything
-HOST = config_data['interactive_interface']['address']
-PORT = config_data['interactive_interface']['port']
-
-controller = controller_interface.Controller()
-
 # Thanks to gemini
-def serve_client(conn, addr):
+def serve_client(conn, addr, controller):
     logger.info(f"New connection from {addr}")
     conn.sendall(b"--- Background Service Console ---\nType 'help' for commands.\n> ")
 
@@ -66,22 +52,22 @@ def serve_client(conn, addr):
     finally:
         conn.close()
 
-def accept_connections():
+def accept_connections(address, port, controller):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # Re-use port immediately after restart
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind((HOST, PORT))
+    server.bind((address, port))
     server.listen(1)
-    logger.info(f"Socket for interactive interface started on {HOST}:{PORT}")
+    logger.info(f"Socket for interactive interface started on {address}:{port}")
 
     while True:
         # This is a waiting point
         conn, addr = server.accept()
         # Serve one client at a time
-        serve_client(conn, addr)
+        serve_client(conn, addr, controller)
 
-# Why this is here?
-def start() -> threading.Thread:
-    thread = threading.Thread(target=accept_connections)
+# I don't want to pass the controller here, temporary fix
+def start(address, port, controller: ctrl.Controller) -> threading.Thread:
+    thread = threading.Thread(target=accept_connections, args=(address, port, controller,))
     thread.start()
     return thread

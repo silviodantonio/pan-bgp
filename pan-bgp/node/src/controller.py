@@ -9,27 +9,14 @@ import grpc
 import vtysh_iface
 import controller_pb2
 import controller_pb2_grpc
-import config
 
-# Get logger and configure it
+# Get logger (hopefully configured by main thread)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
-file_handler = logging.FileHandler("/var/log/pangbp.log")
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
 
 border_router = vtysh_iface.BorderRouter()
 
-logger.info("Loading configuration file")
-config_data = config.load_config_file('/etc/panbgp/node.conf')
-
-controller_addr = config_data['controller']['address']
-controller_port = config_data['controller']['port']
-controller_addr_str = f"{controller_addr}:{controller_port}"
-
 # This is a decorator
-def retry_with_rand_backoff(function):
+def _retry_with_rand_backoff(function):
     def wrapper(*args, **kwargs):
         logger.debug(f"Trying to call {function}")
 
@@ -68,11 +55,16 @@ def retry_with_rand_backoff(function):
 
 class Controller:
 
-    @retry_with_rand_backoff
+    def __init__(self, address, port):
+        self.address = address
+        self.port = port
+        self.address_string = f"{self.address}:{self.port}"
+
+    @_retry_with_rand_backoff
     def send_as_info(self):
 
         logger.info("Sending neighbors ASN to controller")
-        with grpc.insecure_channel(controller_addr_str) as channel:
+        with grpc.insecure_channel(self.address_string) as channel:
             stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
 
             local_as = border_router.local_as
@@ -87,11 +79,11 @@ class Controller:
 
         logger.info("Received: " + response.status)
 
-    @retry_with_rand_backoff
+    @_retry_with_rand_backoff
     def request_path(self, dest_prefix: str, policy: str, k: int):
         # WARN: at the moment controller ignores completely the policy.
 
-        with grpc.insecure_channel(controller_addr_str) as channel:
+        with grpc.insecure_channel(self.address_string) as channel:
             stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
 
             local_as = border_router.local_as
