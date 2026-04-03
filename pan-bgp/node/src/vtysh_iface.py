@@ -1,6 +1,7 @@
 import logging
 import subprocess as sp
 import json
+from time import sleep
 
 """
 This module is responsible for interfacing with `vtysh`, the unified interface
@@ -23,6 +24,17 @@ def call_vtysh(vtysh_command):
 
         finally:
             return command_out
+
+def get_bgp_paths():
+
+    bgp_paths = None
+    get_rib_command = ["show", "ip", "bgp", "json"]
+
+    bgp_paths = json.loads(call_vtysh(get_rib_command)).get("routes")
+    logger.debug(f"Got bgp paths: {bgp_paths}")
+
+    return bgp_paths
+
 
 class BorderRouter:
 

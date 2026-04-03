@@ -102,3 +102,8 @@ class Controller:
 
             logger.info(f"Received paths {paths}")
             return paths
+
+    @_retry_with_rand_backoff
+    def send_as_paths(self):
+        raise NotImplementedError
+
