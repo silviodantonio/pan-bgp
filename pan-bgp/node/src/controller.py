@@ -1,19 +1,18 @@
 # TODO: This module is in dire need of a cleanup
-
 import logging
 import random
 from time import sleep
 
 import grpc
 
-import vtysh_iface
+import frr
 import controller_pb2
 import controller_pb2_grpc
 
 # Get logger (hopefully configured by main thread)
 logger = logging.getLogger(__name__)
 
-border_router = vtysh_iface.BorderRouter()
+border_router = frr.BorderRouter()
 
 # This is a decorator
 def _retry_with_rand_backoff(function):
@@ -81,7 +80,6 @@ class Controller:
 
     @_retry_with_rand_backoff
     def request_path(self, dest_prefix: str, policy: str, k: int):
-        # WARN: at the moment controller ignores completely the policy.
 
         with grpc.insecure_channel(self.address_string) as channel:
             stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
@@ -105,5 +103,21 @@ class Controller:
 
     @_retry_with_rand_backoff
     def send_as_paths(self):
-        raise NotImplementedError
 
+        with grpc.insecure_channel(self.address_string) as channel:
+            stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
+
+            local_as = border_router.local_as
+            bgp_paths = border_router.get_bgp_paths()
+
+            logger.debug("Building message containing AS paths")
+            grpc_bgp_paths = []
+            for dest, path in bgp_paths.items():
+                grpc_bgp_paths.append(controller_pb2.BGPPath(destination=dest, as_path=path))
+
+            request = controller_pb2.BGPPaths(local_as=local_as, bgp_paths=grpc_bgp_paths)
+
+            logger.info("Sending BGP Paths to controller")
+            response = stub.SendBGPPaths(request)
+
+            logger.info("Received: " + response.status)

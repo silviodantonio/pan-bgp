@@ -44,6 +44,11 @@ class ControllerMessagingServiceStub(object):
                 request_serializer=controller__pb2.RequestPathMessage.SerializeToString,
                 response_deserializer=controller__pb2.Paths.FromString,
                 _registered_method=True)
+        self.SendBGPPaths = channel.unary_unary(
+                '/ControllerMessagingService/SendBGPPaths',
+                request_serializer=controller__pb2.BGPPaths.SerializeToString,
+                response_deserializer=controller__pb2.ResponseStatus.FromString,
+                _registered_method=True)
 
 
 class ControllerMessagingServiceServicer(object):
@@ -61,6 +66,12 @@ class ControllerMessagingServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def SendBGPPaths(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ControllerMessagingServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -73,6 +84,11 @@ def add_ControllerMessagingServiceServicer_to_server(servicer, server):
                     servicer.RequestPath,
                     request_deserializer=controller__pb2.RequestPathMessage.FromString,
                     response_serializer=controller__pb2.Paths.SerializeToString,
+            ),
+            'SendBGPPaths': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendBGPPaths,
+                    request_deserializer=controller__pb2.BGPPaths.FromString,
+                    response_serializer=controller__pb2.ResponseStatus.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -129,6 +145,33 @@ class ControllerMessagingService(object):
             '/ControllerMessagingService/RequestPath',
             controller__pb2.RequestPathMessage.SerializeToString,
             controller__pb2.Paths.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SendBGPPaths(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/ControllerMessagingService/SendBGPPaths',
+            controller__pb2.BGPPaths.SerializeToString,
+            controller__pb2.ResponseStatus.FromString,
             options,
             channel_credentials,
             insecure,

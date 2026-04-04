@@ -3,6 +3,7 @@ syntax = "proto3";
 service ControllerMessagingService {
   rpc SendASInfo(ASInfo) returns (ResponseStatus) {}
   rpc RequestPath(RequestPathMessage) returns (Paths) {}
+  rpc SendBGPPaths(BGPPaths) returns (ResponseStatus) {}
 }
 
 message ASInfo {
@@ -36,4 +37,14 @@ message Paths{
 
 message ResponseStatus {
   string status = 1;
+}
+
+message BGPPaths {
+  uint32 local_as = 1;
+  repeated BGPPath bgp_paths = 2;
+}
+
+message BGPPath {
+  uint32 destination = 1;
+  repeated uint32 as_path = 2;
 }

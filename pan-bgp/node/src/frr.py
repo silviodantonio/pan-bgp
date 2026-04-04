@@ -1,7 +1,6 @@
 import logging
 import subprocess as sp
 import json
-from time import sleep
 
 """
 This module is responsible for interfacing with `vtysh`, the unified interface
@@ -24,17 +23,6 @@ def call_vtysh(vtysh_command):
 
         finally:
             return command_out
-
-def get_bgp_paths():
-
-    bgp_paths = None
-    get_rib_command = ["show", "ip", "bgp", "json"]
-
-    bgp_paths = json.loads(call_vtysh(get_rib_command)).get("routes")
-    logger.debug(f"Got bgp paths: {bgp_paths}")
-
-    return bgp_paths
-
 
 class BorderRouter:
 
@@ -76,4 +64,26 @@ class BorderRouter:
                 attached_prefixes.add(prefix)
 
         return attached_prefixes
+
+
+    def get_bgp_paths(self) -> dict:
+
+        bgp_paths = {}
+
+        get_rib_command = ["vtysh", "-d", "bgpd", "-c", "show ip bgp json"]
+        frr_bgp_paths = json.loads(call_vtysh(get_rib_command)).get("routes")
+        logger.debug(f"Got BGP paths from FRR: {frr_bgp_paths}")
+
+        # prefix, paths
+        for _, paths in frr_bgp_paths.items():
+            for path in paths:
+                # consider only bestpaths and avoid self-originated paths
+                if path.get("bestpath") == True and path.get("path"):
+                    as_path = [int(as_num) for as_num in path.get("path").split(' ')]
+                    as_dest = int(as_path[-1])
+                    bgp_paths[as_dest] = as_path
+
+        logger.debug(f"Paths extracted: {bgp_paths}")
+
+        return bgp_paths
 

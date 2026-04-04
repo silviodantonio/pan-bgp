@@ -1,8 +1,8 @@
 import sys
 import logging
+from time import sleep
 
 from configuration import Configuration
-
 import socket_interface
 import controller as ctrl
 
@@ -22,12 +22,29 @@ if __name__=='__main__':
 
     controller.send_as_info()
 
-    # Most likely this can be done better: i would like not to pass the controller
-    socket_interface_addr = configuration.interactive_interface["address"]
-    socket_interface_port = configuration.interactive_interface["port"]
-    socket_interface.start(socket_interface_addr, socket_interface_port, controller)
+    # send bgp paths (temporary approach)
+    controller.send_as_paths()
+
+    # I would like not to pass controller info here
+    local_socket_interface_addr = configuration.interactive_interface["address"]
+    local_socket_interface_port = configuration.interactive_interface["port"]
+
+    local_socket_interface_thread = socket_interface.LocalSocketInterfaceThread(
+            local_socket_interface_addr,
+            local_socket_interface_port,
+            controller)
+    local_socket_interface_thread.start()
+
+    # Here i should start the thread that sends periodically ASPaths to the
+    # controller
 
     try:
         controller.request_path("192.0.2.0/30", "none", 5)
     except Exception as e: 
         logger.debug(f"An exception occurred while sending AS info: {e}")
+
+    # send bgp paths (temporary approach)
+    sleep(2)
+    controller.send_as_paths()
+
+

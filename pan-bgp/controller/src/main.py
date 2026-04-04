@@ -17,7 +17,7 @@ topology_graph = graph.NetworkGraph()
 
 # Maybe return ids instead of AS objects?
 
-def request_path(topology_graph: graph.NetworkGraph, 
+def compute_paths(topology_graph: graph.NetworkGraph, 
                  source_as: graph.NetworkGraph,
                  dest_prefix: str,
                  policy: str,
@@ -83,7 +83,7 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
         logger.info(f'AS {local_as.number} requested {number_paths} paths for prefix {dest_prefix} with policy {policy}')
 
-        found_paths = request_path(
+        found_paths = compute_paths(
             topology_graph, local_as, dest_prefix, policy, number_paths)
 
         # Convert paths from objects to list of ids:
@@ -97,6 +97,22 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
         paths = [controller_pb2.ASPath(as_path=path)
                  for path in found_paths_ids]
         return controller_pb2.Paths(paths=paths)
+
+    def SendBGPPaths(self, request, context):
+
+        local_as_id = request.local_as
+        local_as = topology_graph.ases.get(local_as_id)
+        recv_bgp_paths = request.bgp_paths
+
+        bgp_paths = {}
+        # recv_bgp_path is of type BGPPath
+        for recv_bgp_path in recv_bgp_paths:
+            bgp_paths[recv_bgp_path.destination] = recv_bgp_path.as_path
+
+        logger.info(f"AS{local_as_id} sent paths: {bgp_paths}")
+        # TODO: Need to update info about AS
+
+        return controller_pb2.ResponseStatus(status="OK")
 
 
 def serve(port):

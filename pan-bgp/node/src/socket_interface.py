@@ -1,8 +1,6 @@
 import socket
-import threading
 import logging
-
-import controller as ctrl
+from threading import Thread
 
 logger = logging.getLogger(__name__)
 
@@ -52,22 +50,26 @@ def serve_client(conn, addr, controller):
     finally:
         conn.close()
 
-def accept_connections(address, port, controller):
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # Re-use port immediately after restart
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind((address, port))
-    server.listen(1)
-    logger.info(f"Socket for interactive interface started on {address}:{port}")
+class LocalSocketInterfaceThread(Thread):
 
-    while True:
-        # This is a waiting point
-        conn, addr = server.accept()
-        # Serve one client at a time
-        serve_client(conn, addr, controller)
+    def __init__(self, address, port, controller):
+        super().__init__()
+        self.address = address
+        self.port = port
+        self.controller = controller
 
-# I don't want to pass the controller here, temporary fix
-def start(address, port, controller: ctrl.Controller) -> threading.Thread:
-    thread = threading.Thread(target=accept_connections, args=(address, port, controller,))
-    thread.start()
-    return thread
+    def run(self):
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # Re-use port immediately after restart
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind((self.address, self.port))
+        server.listen(1)
+        # i wonder if logging correctly works
+        logger.info(f"Socket for interactive interface started on {self.address}:{self.port}")
+
+        while True:
+            conn, addr = server.accept()
+            # Serve one client at a time (do not use additional threads)
+            serve_client(conn, addr, self.controller)
+
+
