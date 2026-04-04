@@ -6,6 +6,7 @@ import utils
 logger = utils.get_logger(__name__)
 
 
+# Dummy RPKI prefix validator
 def is_owner(as_number, prefix) -> bool:
     # TODO: implement
     return True
@@ -24,12 +25,18 @@ class AS():
         for peer in peers:
             self.peers.add(peer)
 
-    def announces_prefix(self, prefix: str):
+    def announces_prefix(self, prefix: str) -> None:
         if is_owner(self.number, prefix):
             self.prefixes.add(prefix)
         else:
             self.trusted = False
 
+    def add_as_paths(self, paths_dict) -> None:
+
+        for dest_as, as_path in paths_dict.items():
+            known_as_path = self.as_paths.get(dest_as)
+            if known_as_path is None or known_as_path != as_path:
+                self.as_paths[dest_as] = as_path
 
 class NetworkGraph():
 
@@ -45,6 +52,7 @@ class NetworkGraph():
             for prefix in new_as.prefixes:
                 self.prefix_table[prefix] = new_as
             logger.debug("New AS node in graph")
+
 
     def find_all_paths(self, start_as: AS, dest_as: AS, path=[]) -> list[list[AS]]:
         # Thanks to Gemini.

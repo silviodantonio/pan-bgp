@@ -104,13 +104,24 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
         local_as = topology_graph.ases.get(local_as_id)
         recv_bgp_paths = request.bgp_paths
 
+        # Extract paths from request
         bgp_paths = {}
-        # recv_bgp_path is of type BGPPath
         for recv_bgp_path in recv_bgp_paths:
             bgp_paths[recv_bgp_path.destination] = recv_bgp_path.as_path
 
         logger.info(f"AS{local_as_id} sent paths: {bgp_paths}")
-        # TODO: Need to update info about AS
+
+        logger.debug("Filtering received AS paths")
+        # keep only paths with trusted destinations
+        filtered_dict = {}
+        for dest_as_id, as_path in bgp_paths.items():
+            dest_as_obj = topology_graph.ases.get(str(dest_as_id))
+            if dest_as_obj is not None and dest_as_obj.trusted:
+                # filtered_dict[dest_as_id] = [int(as_num) for as_num in as_path]
+                filtered_dict[dest_as_id] = as_path
+
+        logger.info(f"Adding paths to trusted destinations to AS{local_as_id}")
+        local_as.add_as_paths(filtered_dict)
 
         return controller_pb2.ResponseStatus(status="OK")
 
