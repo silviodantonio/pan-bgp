@@ -1,6 +1,5 @@
 import sys
 import logging
-from time import sleep
 
 from configuration import Configuration
 import socket_interface
@@ -22,8 +21,10 @@ if __name__=='__main__':
 
     controller.send_as_info()
 
-    # send bgp paths (temporary approach)
+    # send bgp paths and then start beaconing in a separate thread
     controller.send_as_paths()
+    # TODO: move beaconing rate in config file
+    as_path_beaconing_thread = ctrl.ASPathBeaconingThread(controller, 5)
 
     # I would like not to pass controller info here
     local_socket_interface_addr = configuration.interactive_interface["address"]
@@ -35,16 +36,7 @@ if __name__=='__main__':
             controller)
     local_socket_interface_thread.start()
 
-    # Here i should start the thread that sends periodically ASPaths to the
-    # controller
-
     try:
         controller.request_path("192.0.2.0/30", "none", 5)
     except Exception as e: 
         logger.debug(f"An exception occurred while sending AS info: {e}")
-
-    # send bgp paths (temporary approach)
-    sleep(2)
-    controller.send_as_paths()
-
-

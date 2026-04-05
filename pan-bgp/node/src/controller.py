@@ -2,6 +2,7 @@
 import logging
 import random
 from time import sleep
+from threading import Thread
 
 import grpc
 
@@ -121,3 +122,17 @@ class Controller:
             response = stub.SendBGPPaths(request)
 
             logger.info("Received: " + response.status)
+
+class ASPathBeaconingThread(Thread):
+
+    def __init__(self, controller: Controller, beaconing_rate: int):
+        super().__init__()
+        self.beaconing_rate = beaconing_rate
+        self.controller = controller
+
+    def run(self):
+
+        while True:
+            self.controller.send_as_paths(self)
+            sleep(self.beaconing_rate)
+

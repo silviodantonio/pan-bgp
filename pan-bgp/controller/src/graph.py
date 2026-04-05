@@ -11,6 +11,18 @@ def is_owner(as_number, prefix) -> bool:
     # TODO: implement
     return True
 
+class Link():
+
+    # Not using AS object since destination could be
+    # a non-controlled AS, for which AS objects are not created.
+    def __init__(self, source: int, dest: int, path: list[int]):
+        self.source: int = source
+        self.dest: int = dest
+
+        # List will be empty for directly connected peers.
+        # Otherwise, it will contain the AS path extracted from the controller.
+        self.path: list[int]
+
 
 class AS():
 
@@ -25,6 +37,8 @@ class AS():
         for peer in peers:
             self.peers.add(peer)
 
+        self.links: dict[int, Link] = {}
+
     def announces_prefix(self, prefix: str) -> None:
         if is_owner(self.number, prefix):
             self.prefixes.add(prefix)
@@ -36,12 +50,25 @@ class AS():
         for dest_as, as_path in paths_dict.items():
             known_as_path = self.as_paths.get(dest_as)
             if known_as_path is None or known_as_path != as_path:
-                self.as_paths[dest_as] = as_path
+                self.links[dest_as] = as_path
+
+    def add_links(self, links: list[Link]) -> None:
+
+        for link in links:
+            # filter out potentially unwanted links
+            if link.source == self.number:
+                # if link to dest already exists
+                currently_known_link = self.links.get(link.dest)
+                if currently_known_link is not None:
+                    # replace if different
+                    if currently_known_link != link:
+                        self.links[link.dest] = link
+
 
 class NetworkGraph():
 
     def __init__(self):
-        self.ases: dict[str, AS] = {}
+        self.ases: dict[int, AS] = {}
         self.prefix_table: dict[str, AS] = {}
 
     def add_as(self, new_as: AS):
@@ -74,13 +101,18 @@ class NetworkGraph():
 
         return paths
 
-    def _find_trusted_paths(self, start_as: AS, dest_as: AS, path=[]) -> list[list[AS]]:
+
+    def _find_trusted_paths(self, start_as: int, dest_as: int, path=[]) -> list[list[int]]:
         # Thanks to Gemini part II (this code is copied from find_all_paths)
         # I don't fully understand what's happening here and what is being passed during
         # the recursion.
 
-        controlled_as_peers = [self.ases(as_peer_id) for as_peer_id in start_as.peers]
-        as_trusted_peers = [as_peer for as_peer in controlled_as_peers if as_peer.trusted]
+        # get trusted_peers
+        trusted_peers = []
+        start_as_obj = self.ases.get(start_as)
+        for link_dest, link_path in start_as_obj.links.items():
+            if link_dest in self.ases and link_path == []:
+                trusted_peers.append(link_dest)
 
         current_path = path.copy()
         current_path.extend([start_as])
@@ -89,15 +121,15 @@ class NetworkGraph():
             return [current_path]
 
         paths = []
-        for as_trusted_peer in as_trusted_peers:
-            if as_trusted_peer not in current_path:
+        for trusted_peer in trusted_peers:
+            if trusted_peer not in current_path:
                 new_paths = self._find_trusted_paths(
-                    as_trusted_peer, dest_as, current_path)
+                    trusted_peer, dest_as, current_path)
                 paths.extend(new_paths)
 
         return paths
 
-    def trusted_paths(self, start_as: AS, dest_as: AS) -> list[list[AS]]:
+    def trusted_paths(self, start_as: int, dest_as: int) -> list[list[int]]:
 
         start_as_component = self.bfs(start_as)
         if dest_as in start_as_component:
@@ -105,9 +137,10 @@ class NetworkGraph():
         else:
             return [[]]
 
-    def bfs(self, start_as: AS) -> set[AS]:
+    def bfs(self, start_as: int) -> set[int]:
+
         # use bfs to explore the graph component to which start_as belongs
-        logger.debug(f"Computing reachable nodes from AS{start_as.number}")
+        logger.debug(f"Computing reachable nodes from AS{start_as}")
 
         visited = set()
         nodes_deque = deque([start_as])
@@ -119,8 +152,11 @@ class NetworkGraph():
             if current_node not in visited:
                 # if it's a new node
                 visited.add(current_node)
-                for neighbor in current_node.neighbors:
-                    nodes_deque.append(neighbor)
+                # add to visit all directly connected nodes
+                current_as_obj = self.ases.get(current_node)
+                for link_dest, link_path in current_as_obj.links.items():
+                    if link_path == []:
+                        nodes_deque.append(link_dest)
 
         return visited
 
