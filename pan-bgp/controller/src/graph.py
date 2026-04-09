@@ -11,6 +11,14 @@ def is_owner(as_number, prefix) -> bool:
     # TODO: implement
     return True
 
+def filter_trusted_links(link):
+    trusted = False
+    dest_as = singleton_network_graph.ases.get(link.dest)
+    if (dest_as is not None) and dest_as.trusted and (len(link.path) == 1):
+        trusted = True
+    logger.debug(f"Link: {link.source} {link} is trusted? {trusted}")
+    return trusted
+
 class Link():
 
     # Not using AS object since destination could be
@@ -21,48 +29,56 @@ class Link():
 
         # List will be empty for directly connected peers.
         # Otherwise, it will contain the AS path extracted from the controller.
-        self.path: list[int]
+        self.path: list[int] = path
+
+    def __str__(self):
+        link_elem_list = []
+        # link_elem_list.append(str(self.source))
+        for hop in self.path:
+            link_elem_list.append(str(hop))
+        # link_elem_list.append(str(self.dest))
+        return ' '.join(link_elem_list)
 
 
 class AS():
 
-    def __init__(self, as_number, peers: list[int]):
+    def __init__(self, as_number):
         self.number: int = as_number
+
+        # Maybe useless. The fact that the object exists
+        # means that the AS is controlled.
         self.controlled = True
         self.trusted = True
+
         self.prefixes: set[str] = set()
-        self.as_paths: list[int] = {}
-
-        self.peers: set[int] = set()
-        for peer in peers:
-            self.peers.add(peer)
-
         self.links: dict[int, Link] = {}
 
-    def announces_prefix(self, prefix: str) -> None:
+    def add_prefix(self, prefix: str) -> None:
         if is_owner(self.number, prefix):
             self.prefixes.add(prefix)
         else:
             self.trusted = False
 
-    def add_as_paths(self, paths_dict) -> None:
-
-        for dest_as, as_path in paths_dict.items():
-            known_as_path = self.as_paths.get(dest_as)
-            if known_as_path is None or known_as_path != as_path:
-                self.links[dest_as] = as_path
-
     def add_links(self, links: list[Link]) -> None:
 
         for link in links:
-            # filter out potentially unwanted links
-            if link.source == self.number:
-                # if link to dest already exists
-                currently_known_link = self.links.get(link.dest)
-                if currently_known_link is not None:
-                    # replace if different
-                    if currently_known_link != link:
-                        self.links[link.dest] = link
+            # replace known links if different from previously known
+            if link.dest in self.links:
+                if self.links.get(link.dest) != link:
+                    self.links[link.dest] = link
+                    logger.debug(f'Updating link for {link.dest}: {link}')
+            # otherwise just add it to the list
+            else:
+                logger.debug(f'Adding new link for {link.dest}: {link}')
+                self.links[link.dest] = link
+
+    def __str__(self):
+        links = [str(link) for link in self.links.values()]
+        links_str = ', '.join(links)
+        return f"""AS{self.number:}:
+            Trusted: {self.trusted}
+            Prefixes [{len(self.prefixes)}]: {str(self.prefixes)}
+            Links [{len(self.links)}]: {links_str}"""
 
 
 class NetworkGraph():
@@ -101,24 +117,21 @@ class NetworkGraph():
 
         return paths
 
-
     def _find_trusted_paths(self, start_as: int, dest_as: int, path=[]) -> list[list[int]]:
         # Thanks to Gemini part II (this code is copied from find_all_paths)
         # I don't fully understand what's happening here and what is being passed during
         # the recursion.
-
-        # get trusted_peers
-        trusted_peers = []
-        start_as_obj = self.ases.get(start_as)
-        for link_dest, link_path in start_as_obj.links.items():
-            if link_dest in self.ases and link_path == []:
-                trusted_peers.append(link_dest)
 
         current_path = path.copy()
         current_path.extend([start_as])
 
         if start_as == dest_as:
             return [current_path]
+
+        # Get trusted peers
+        start_as_obj = self.ases.get(start_as)
+        trusted_links = filter(filter_trusted_links, start_as_obj.links.values())
+        trusted_peers: int = [link.dest for link in trusted_links]
 
         paths = []
         for trusted_peer in trusted_peers:
@@ -130,12 +143,8 @@ class NetworkGraph():
         return paths
 
     def trusted_paths(self, start_as: int, dest_as: int) -> list[list[int]]:
-
-        start_as_component = self.bfs(start_as)
-        if dest_as in start_as_component:
-            return self._find_trusted_paths(start_as, dest_as, [])
-        else:
-            return [[]]
+        # Here there was a BFS graph check.
+        return self._find_trusted_paths(start_as, dest_as, [])
 
     def bfs(self, start_as: int) -> set[int]:
 
@@ -161,8 +170,7 @@ class NetworkGraph():
         return visited
 
     def __str__(self):
-        adjacency_dictionary_list = {}
-        for as_number, as_obj in self.ases.items():
-            as_peers = [as_peer for as_peer in as_obj.peers]
-            adjacency_dictionary_list[as_number] = as_peers
-        return str(adjacency_dictionary_list)
+        ases = [str(as_obj) for as_obj in self.ases.values()]
+        return '\n\n'.join(ases)
+
+singleton_network_graph = NetworkGraph()

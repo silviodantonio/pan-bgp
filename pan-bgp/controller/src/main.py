@@ -1,3 +1,5 @@
+# This moudle needs to be cleaned up
+
 from concurrent import futures
 
 import grpc
@@ -13,31 +15,34 @@ import controller_pb2_grpc  # Contains stubs and other stuf for building the ser
 # Get a pre-configured logger instance
 logger = utils.get_logger(__name__)
 
-topology_graph = graph.NetworkGraph()
-
-# Maybe return ids instead of AS objects?
+topology_graph = graph.singleton_network_graph
 
 def compute_paths(topology_graph: graph.NetworkGraph, 
-                 source_as: str,
+                 source_as: int,
                  dest_prefix: str,
                  policy: str,
-                 num: int) -> list[list[graph.AS]]:
+                 num: int) -> list[list[int]]:
+
+    logger.debug(f"Current AS topology: {topology_graph}")
 
     found_paths = []
 
     # Check if the destination prefix is known
-    dest_as_id = topology_graph.prefix_table.get(dest_prefix)
-    if dest_as_id is None:
+    dest_as = topology_graph.prefix_table.get(dest_prefix)
+    if dest_as is None:
         logger.info(f'No known AS owns {dest_prefix}')
         return found_paths
 
-    logger.debug(f"Current AS topology: {topology_graph}")
+    dest_as_id = dest_as.number
+    logger.debug(f"AS{dest_as_id} has annouced {dest_prefix}")
+
 
     # NOTE: other two policies to add could be:
     # controlled_paths, controlled_midpoints.
 
     # attempt to populate the found_paths list.
     if policy == 'trusted_paths':
+        logger.info(f"Finding trusted paths from AS{source_as} to AS{dest_as_id} ({dest_prefix})")
         found_paths = topology_graph.trusted_paths(source_as, dest_as_id)
     else:
         logger.info("Unknown policy")
@@ -63,22 +68,22 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
         # if not exists, build a new node
         if local_as_num not in topology_graph.ases:
             logger.info(f"Creating object for AS{local_as_num}")
-            new_as = graph.AS(local_as_num, [])
+            new_as = graph.AS(local_as_num)
 
 
-            logger.debug("Building link objects")
             # build links
             peer_links = []
             for peer in peers_list:
-                peer_link = graph.Link(local_as_num, peer, [])
+                peer_link = graph.Link(local_as_num, peer, [peer])
                 peer_links.append(peer_link)
 
             # add them to new_as
+            logger.debug(f"Adding link objects for peers to AS{local_as_num}")
             new_as.add_links(peer_links)
 
             logger.debug(f"Adding prefixes to AS{local_as_num}")
             for prefix in prefix_list:
-                new_as.announces_prefix(prefix)
+                new_as.add_prefix(prefix)
             topology_graph.add_as(new_as)
 
         return controller_pb2.ResponseStatus(status="OK")
@@ -97,24 +102,18 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
         found_paths = compute_paths(
             topology_graph, local_as_id, dest_prefix, policy, number_paths)
 
-        # Convert paths from objects to list of ids:
-        found_paths_ids = []
-        for path in found_paths:
-            found_paths_ids.append([as_number for as_number in path])
-
-        logger.debug(f"Returning paths for {dest_prefix}:\n{found_paths_ids}")
+        logger.debug(f"Returning paths for {dest_prefix}:\n{found_paths}")
 
         # Return a list of ASPaths. Each ASPath is a list of ASN
-        paths = [controller_pb2.ASPath(as_path=path)
-                 for path in found_paths_ids]
+        paths = [controller_pb2.ASPath(as_path=path) for path in found_paths]
         return controller_pb2.Paths(paths=paths)
 
     def SendBGPPaths(self, request, context):
 
+        # TODO: this implementation most likely can be slimmed down
+
         local_as_id = request.local_as
-        logger.debug(f"Attempting to add paths to AS{local_as_id}")
         local_as = topology_graph.ases.get(local_as_id)
-        logger.debug(f"local_as_obj: {local_as}")
         recv_bgp_paths = request.bgp_paths
 
         # Extract paths from request
@@ -122,31 +121,19 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
         for recv_bgp_path in recv_bgp_paths:
             bgp_paths[recv_bgp_path.destination] = recv_bgp_path.as_path
 
-        logger.info(f"AS{local_as_id} sent paths: {bgp_paths}")
+        logger.debug(f"AS{local_as_id} sent paths: {bgp_paths}")
 
-        # NOTE: filtering and building Link objects can be done in one pass.
-
-        logger.debug("Filtering received AS paths")
-        # keep only paths with trusted destinations
-        filtered_dict = {}
-        for dest_as_id, as_path in bgp_paths.items():
-            dest_as_obj = topology_graph.ases.get(str(dest_as_id))
-            if dest_as_obj is not None and dest_as_obj.trusted:
-                # filtered_dict[dest_as_id] = [int(as_num) for as_num in as_path]
-                filtered_dict[dest_as_id] = as_path
+        # NOTE: Here a filtering policy can be added
 
         # build link objects
         bgp_links = []
-        for dest_id, as_path in filtered_dict.items():
-            bgp_link = graph.Link(local_as_id, dest_id, as_path)
+        for bgp_dest, bgp_path in bgp_paths.items():
+            bgp_link = graph.Link(local_as_id, bgp_dest, bgp_path)
             bgp_links.append(bgp_link)
 
         # add them to the as_obj
+        logger.debug(f"Adding/updating paths in AS{local_as_id}")
         local_as.add_links(bgp_links)
-
-
-        logger.info(f"Adding paths to trusted destinations to AS{local_as_id}")
-        local_as.add_as_paths(filtered_dict)
 
         return controller_pb2.ResponseStatus(status="OK")
 

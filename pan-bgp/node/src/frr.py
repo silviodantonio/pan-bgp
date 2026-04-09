@@ -72,7 +72,6 @@ class BorderRouter:
 
         get_rib_command = ["vtysh", "-d", "bgpd", "-c", "show ip bgp json"]
         frr_bgp_paths = json.loads(call_vtysh(get_rib_command)).get("routes")
-        logger.debug(f"Got BGP paths from FRR: {frr_bgp_paths}")
 
         # prefix, paths
         for _, paths in frr_bgp_paths.items():
@@ -82,8 +81,6 @@ class BorderRouter:
                     as_path = [int(as_num) for as_num in path.get("path").split(' ')]
                     as_dest = int(as_path[-1])
                     bgp_paths[as_dest] = as_path
-
-        logger.debug(f"Paths extracted: {bgp_paths}")
 
         return bgp_paths
 

@@ -21,10 +21,9 @@ if __name__=='__main__':
 
     controller.send_as_info()
 
-    # send bgp paths and then start beaconing in a separate thread
-    controller.send_as_paths()
-    # TODO: move beaconing rate in config file
     as_path_beaconing_thread = ctrl.ASPathBeaconingThread(controller, 5)
+    # Immediately sends an update and then repeats every 5s
+    as_path_beaconing_thread.start()
 
     # I would like not to pass controller info here
     local_socket_interface_addr = configuration.interactive_interface["address"]
@@ -37,6 +36,6 @@ if __name__=='__main__':
     local_socket_interface_thread.start()
 
     try:
-        controller.request_path("192.0.2.0/30", "none", 5)
+        controller.request_path("192.0.2.0/30", "trusted_paths", 5)
     except Exception as e: 
-        logger.debug(f"An exception occurred while sending AS info: {e}")
+        logger.debug(f"An exception occurred while requesting paths: {e}")
