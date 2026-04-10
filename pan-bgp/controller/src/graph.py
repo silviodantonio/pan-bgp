@@ -1,9 +1,9 @@
 from collections import deque
+import logging
 
-import utils
 
 # Get a logger instance
-logger = utils.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 # Dummy RPKI prefix validator
