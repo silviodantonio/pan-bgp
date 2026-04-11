@@ -1,4 +1,5 @@
-from collections import deque
+from collections import deque, defaultdict
+from heapq import heapify, heappop, heappush
 import logging
 
 
@@ -10,6 +11,16 @@ logger = logging.getLogger(__name__)
 def is_owner(as_number, prefix) -> bool:
     # TODO: implement
     return True
+
+def cost_untrusted_AS(link) -> int:
+
+    cost = 0
+    for as_ in link.path:
+        as_obj = singleton_network_graph.ases.get(as_)
+        if (as_obj is None) or (as_obj.trusted == False):
+            cost += 1
+
+    return cost
 
 def filter_trusted_links(link):
     trusted = False
@@ -147,6 +158,8 @@ class NetworkGraph():
         return self._find_trusted_paths(start_as, dest_as, [])
 
     def bfs(self, start_as: int) -> set[int]:
+        # TODO: (?) if i want to use this i need to adapt it. 
+        # It needs to use the link abstraction.
 
         # use bfs to explore the graph component to which start_as belongs
         logger.debug(f"Computing reachable nodes from AS{start_as}")
@@ -168,6 +181,87 @@ class NetworkGraph():
                         nodes_deque.append(link_dest)
 
         return visited
+
+    def dijkstra(self, local_as_num, link_cost_function, link_filter_function=None) -> list[list[int]]:
+
+        distance = defaultdict(lambda : None)
+        distance[local_as_num] = 0
+
+        predecessor = defaultdict(lambda : None)
+        predecessor[local_as_num] = None
+
+        priority_queue = [(0, local_as_num)]
+        heapify(priority_queue)
+
+        visited = set()
+
+        if link_filter_function is None:
+            link_filter_function = lambda link: True
+
+        # Main algo
+        while priority_queue:
+            # Node with min distance
+            current_distance, current_node = heappop(priority_queue)
+            if current_node in visited:
+                continue
+            visited.add(current_node)
+            logger.debug(f"Popped from priority queue: distance: {current_distance}, node: {current_node}")
+
+            # Get neighbors and assign a cost to each link
+            neighbors_with_cost = []
+
+            neighbor_obj = singleton_network_graph.ases.get(current_node)
+            if neighbor_obj is not None:
+                neighbors_links = neighbor_obj.links.values()
+                filtered_neighbors_links = filter(link_filter_function, neighbors_links)
+
+                for link in filtered_neighbors_links:
+                    neighbors_with_cost.append((link.dest, link_cost_function(link)))
+
+            # Update distances
+            for neighbor, cost in neighbors_with_cost:
+                logger.debug(f"reaching {neighbor} with cost {cost}")
+                new_distance = current_distance + cost
+                # if new_distance is better than previous one update it
+                if (distance[neighbor] is None) or (new_distance < distance[neighbor]):
+                    logger.debug(f"found better cost. New: {new_distance}, old: {distance[neighbor]}")
+                    distance[neighbor] = new_distance
+                    predecessor[neighbor] = current_node
+                    heappush(priority_queue, (new_distance, neighbor))
+
+        logger.debug(f"Computed MST rooted at {local_as_num}\ndistances: {distance}, predecessors: {predecessor}")
+        return distance, predecessor
+
+    def least_cost_path(self, start_as_num, dest_as_num, link_cost_function, link_filter_function) -> list[int]:
+
+        distance, predecessor = self.dijkstra(start_as_num, link_cost_function, link_filter_function)
+        least_cost_path = []
+        cost = None
+        if dest_as_num in predecessor:
+            cost = distance[dest_as_num]
+            current_node = dest_as_num
+            while current_node != None:
+                least_cost_path.append(current_node)
+                current_node = predecessor[current_node]
+
+        least_cost_path.reverse()
+
+        # Fill "gaps" in the returned path
+        complete_path = []
+        as_num = least_cost_path[0]
+        complete_path.append(as_num)
+        for i in range(len(least_cost_path)-1):
+            # Append paths of links as_num to next_as_num
+            next_as_num = least_cost_path[i+1]
+
+            as_obj = singleton_network_graph.ases[as_num]
+            link_to_next = as_obj.links[next_as_num]
+
+            complete_path.extend(link_to_next.path)
+            as_num = next_as_num
+
+        return complete_path, cost
+
 
     def __str__(self):
         ases = [str(as_obj) for as_obj in self.ases.values()]

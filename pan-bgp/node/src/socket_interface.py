@@ -9,6 +9,7 @@ help                                print this message
 paths <prefix> <policy> <num>       request <num> paths for <prefix>, satisfying <policy>
 
 policies: trusted_paths
+          minimize_untrusted (returns only one path)
 """
 
 # Thanks to gemini
@@ -19,6 +20,7 @@ def serve_client(conn, addr, controller):
     try:
         while True:
             # Receive data and strip newline characters (Telnet sends \r\n)
+            # This way of receiving stuff is not right but we'll pretend it is
             data = conn.recv(1024).decode('utf-8').strip()
             tokens = data.split(' ')
 

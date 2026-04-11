@@ -6,10 +6,10 @@ import graph
 logger = logging.getLogger(__name__)
 topology_graph = graph.singleton_network_graph
 
-def compute_paths(source_as: int,
+def compute_paths(source_as_number: int,
                   dest_prefix: str,
                   policy: str,
-                  num: int) -> list[list[int]]:
+                  num_paths: int) -> list[list[int]]:
 
     logger.debug(f"Current AS topology: {topology_graph}")
 
@@ -21,24 +21,29 @@ def compute_paths(source_as: int,
         logger.info(f'No known AS owns {dest_prefix}')
         return found_paths
 
-    dest_as_id = dest_as.number
-    logger.debug(f"AS{dest_as_id} has annouced {dest_prefix}")
-
-
     # NOTE: other two policies to add could be:
     # controlled_paths, controlled_midpoints.
 
     # attempt to populate the found_paths list.
+    logger.info(f"Finding paths from AS{source_as_number} to AS{dest_as.number} ({dest_prefix})")
     if policy == 'trusted_paths':
-        logger.info(f"Finding trusted paths from AS{source_as} to AS{dest_as_id} ({dest_prefix})")
-        found_paths = topology_graph.trusted_paths(source_as, dest_as_id)
+        found_paths = topology_graph.trusted_paths(source_as_number, dest_as.number)
+    elif policy == 'minimize_untrusted':
+        # returns only one path since dijkstra builds a minimum spanning tree.
+        min_untrusted_path, cost = topology_graph.least_cost_path(source_as_number,
+                                                            dest_as.number,
+                                                            graph.cost_untrusted_AS, None)
+        found_paths = [min_untrusted_path]
     else:
         logger.info("Unknown policy")
 
+
     # Pick the number of paths requested
-    found_paths = found_paths[:num]
+    found_paths = found_paths[:num_paths]
 
     return found_paths
+
+
 
 def add_as(local_as_num, peers_list, prefix_list):
     # if not exists, build a new node
