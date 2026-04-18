@@ -13,7 +13,7 @@ policies: trusted_paths
 """
 
 # Thanks to gemini
-def serve_client(conn, addr, controller):
+def serve_client(conn, addr, messager):
     logger.info(f"New connection from {addr}")
     conn.sendall(b"--- Background Service Console ---\nType 'help' for commands.\n> ")
 
@@ -35,7 +35,7 @@ def serve_client(conn, addr, controller):
                 num = int(tokens[3])
                 try:
                     logger.debug(f"Requesting {num} pahts for {prefix} with policy {policy}")
-                    paths = controller.request_path(prefix, policy, num)
+                    paths = messager.request_path(prefix, policy, num)
                     response = f"Paths for prefix {prefix}: {paths}"
                 except Exception as e:
                     logger.debug(f"Something went wrong while sending the request: {e}")
@@ -54,11 +54,11 @@ def serve_client(conn, addr, controller):
 
 class LocalSocketInterfaceThread(Thread):
 
-    def __init__(self, address, port, controller):
+    def __init__(self, address, port, messager):
         super().__init__()
         self.address = address
         self.port = port
-        self.controller = controller
+        self.messager = messager
 
     def run(self):
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -72,6 +72,4 @@ class LocalSocketInterfaceThread(Thread):
         while True:
             conn, addr = server.accept()
             # Serve one client at a time (do not use additional threads)
-            serve_client(conn, addr, self.controller)
-
-
+            serve_client(conn, addr, self.messager)

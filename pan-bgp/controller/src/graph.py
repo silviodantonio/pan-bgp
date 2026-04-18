@@ -203,6 +203,7 @@ class NetworkGraph():
             # Node with min distance
             current_distance, current_node = heappop(priority_queue)
             if current_node in visited:
+                logger.debug(f"Node {current_node} already visited")
                 continue
             visited.add(current_node)
             logger.debug(f"Popped from priority queue: distance: {current_distance}, node: {current_node}")
@@ -234,9 +235,11 @@ class NetworkGraph():
 
     def least_cost_path(self, start_as_num, dest_as_num, link_cost_function, link_filter_function) -> list[int]:
 
-        distance, predecessor = self.dijkstra(start_as_num, link_cost_function, link_filter_function)
         least_cost_path = []
-        cost = None
+        cost = 0
+        complete_path = []
+
+        distance, predecessor = self.dijkstra(start_as_num, link_cost_function, link_filter_function)
         if dest_as_num in predecessor:
             cost = distance[dest_as_num]
             current_node = dest_as_num
@@ -244,21 +247,23 @@ class NetworkGraph():
                 least_cost_path.append(current_node)
                 current_node = predecessor[current_node]
 
-        least_cost_path.reverse()
+            least_cost_path.reverse()
+            logger.debug(f"Path returend from Dijkstra: {least_cost_path}")
 
-        # Fill "gaps" in the returned path
-        complete_path = []
-        as_num = least_cost_path[0]
-        complete_path.append(as_num)
-        for i in range(len(least_cost_path)-1):
-            # Append paths of links as_num to next_as_num
-            next_as_num = least_cost_path[i+1]
+            # Fill "gaps" in the returned path
+            as_num = least_cost_path[0]
+            complete_path.append(as_num)
+            for i in range(len(least_cost_path)-1):
+                # Append paths of links as_num to next_as_num
+                next_as_num = least_cost_path[i+1]
 
-            as_obj = singleton_network_graph.ases[as_num]
-            link_to_next = as_obj.links[next_as_num]
+                as_obj = singleton_network_graph.ases[as_num]
+                link_to_next = as_obj.links[next_as_num]
 
-            complete_path.extend(link_to_next.path)
-            as_num = next_as_num
+                complete_path.extend(link_to_next.path)
+                as_num = next_as_num
+
+            logger.debug(f"Computed \"full path\": {complete_path}")
 
         return complete_path, cost
 

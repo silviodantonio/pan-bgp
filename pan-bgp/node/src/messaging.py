@@ -1,25 +1,20 @@
-# TODO: This module is in dire need of a cleanup
 import logging
 import random
 from time import sleep
 from threading import Thread
-import hashlib
 
 import grpc
 
-import frr
+import core
 import controller_pb2
 import controller_pb2_grpc
 
-# Get logger (hopefully configured by main thread)
 logger = logging.getLogger(__name__)
-
-border_router = frr.BorderRouter()
+node = core.node_singleton
 
 # This is a decorator
 def _retry_with_rand_backoff(function):
     def wrapper(*args, **kwargs):
-        logger.debug(f"Trying to call {function}")
 
         base = 2            # binary exponential backoff
 
@@ -54,7 +49,8 @@ def _retry_with_rand_backoff(function):
                     raise e
     return wrapper
 
-class Controller:
+
+class Messager:
 
     def __init__(self, address, port):
         self.address = address
@@ -64,15 +60,15 @@ class Controller:
     @_retry_with_rand_backoff
     def send_as_info(self):
 
-        logger.info("Sending neighbors ASN to controller")
         with grpc.insecure_channel(self.address_string) as channel:
             stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
 
-            local_as = border_router.local_as
-            remote_as_set = border_router.remote_as_set
-            attached_prefixes = border_router.attached_prefixes
-            logger.info("Sending AS info message")
-            logger.info(f"Neighbors: {remote_as_set}, attached prefixes: {attached_prefixes}")
+            local_as = node.local_asn
+            remote_as_set = node.bgp_peers
+            attached_prefixes = node.attached_prefixes
+
+            logger.info("Sending AS info message to controller")
+            logger.debug(f"Neighbors: {remote_as_set}, attached prefixes: {attached_prefixes}")
 
             response = stub.SendASInfo(controller_pb2.ASInfo(local_as=local_as,
                                                              remote_as_list=remote_as_set,
@@ -80,13 +76,14 @@ class Controller:
 
         logger.info("Received: " + response.status)
 
+
     @_retry_with_rand_backoff
     def request_path(self, dest_prefix: str, policy: str, k: int):
 
         with grpc.insecure_channel(self.address_string) as channel:
             stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
 
-            local_as = border_router.local_as
+            local_as = node.local_asn
             logger.info(f"Requesting paths for {dest_prefix}")
 
             destination_prefix = controller_pb2.Destination(local_as=local_as, dest_prefix=dest_prefix)
@@ -103,52 +100,47 @@ class Controller:
             logger.info(f"Received paths {paths}")
             return paths
 
+
     @_retry_with_rand_backoff
-    def send_as_paths(self, bgp_paths):
+    def send_as_paths(self):
 
         with grpc.insecure_channel(self.address_string) as channel:
             stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
 
-            local_as = border_router.local_as
+            local_as = node.local_asn
+            bgp_paths = node.get_paths()
 
-            logger.debug("Building gRPC message")
+
             grpc_bgp_paths = []
-            for dest, path in bgp_paths.items():
-                grpc_bgp_paths.append(controller_pb2.BGPPath(destination=dest, as_path=path))
+            for dest, paths in bgp_paths.items():
+                for path in paths:
+                    grpc_bgp_paths.append(controller_pb2.BGPPath(destination=path.dest_as, 
+                                                                 as_path=path.path))
 
+            logger.info("Sending AS Paths to controller")
+            logger.debug(f"AS Paths: {bgp_paths}")
             request = controller_pb2.BGPPaths(local_as=local_as, bgp_paths=grpc_bgp_paths)
 
-            logger.info("Sending BGP Paths to controller")
             response = stub.SendBGPPaths(request)
 
             logger.info("Received: " + response.status)
 
+
 class ASPathBeaconingThread(Thread):
 
-    def __init__(self, controller: Controller, beaconing_rate: int):
+    def __init__(self, messager: Messager, beaconing_rate: int):
         super().__init__()
+        self.messager = messager
         self.beaconing_rate = beaconing_rate
-        self.controller = controller
 
     def run(self):
 
-        rib_hash = ""
+        while True:
 
-        try:
-            while True:
+            try:
+                self.messager.send_as_paths()
+            except Exception as e:
+                logger.warn(f"Couldn't send AS Paths to controller. Raised exception:\n{e}")
 
-                logger.debug("Checking for RIB changes")
-
-                bgp_paths = border_router.get_bgp_paths()
-                new_rib_hash = hashlib.sha1(bytes(str(bgp_paths), 'utf8')).hexdigest()
-                if new_rib_hash != rib_hash:
-                    new_rib_hash_str = f"{new_rib_hash[:3]}...{new_rib_hash[-3:]}"
-                    rib_hash_str = f"{rib_hash[:3]}...{rib_hash[-3:]}"
-                    logger.info(f"Detected updated RIB. New: {new_rib_hash_str} Old: {rib_hash_str}")
-                    logger.debug(f"Paths extracted: {bgp_paths}")
-                    rib_hash = new_rib_hash
-                    self.controller.send_as_paths(bgp_paths)
-                sleep(self.beaconing_rate)
-        except Exception as e:
-            logger.warning(f"In beaconing thread an exception occurred: {e}")
+            sleep(self.beaconing_rate)
 

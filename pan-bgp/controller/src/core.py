@@ -29,7 +29,7 @@ def compute_paths(source_as_number: int,
     if policy == 'trusted_paths':
         found_paths = topology_graph.trusted_paths(source_as_number, dest_as.number)
     elif policy == 'minimize_untrusted':
-        # returns only one path since dijkstra builds a minimum spanning tree.
+        # NOTE: returns only one path since dijkstra builds a minimum spanning tree.
         min_untrusted_path, cost = topology_graph.least_cost_path(source_as_number,
                                                             dest_as.number,
                                                             graph.cost_untrusted_AS, None)
@@ -78,5 +78,5 @@ def add_bgp_paths(local_as_id: int, bgp_paths: dict[int, list[int]]):
             bgp_links.append(bgp_link)
 
         # add them to the as_obj
-        logger.debug(f"Adding/updating paths in AS{local_as_id}")
+        logger.debug(f"Adding/updating paths for AS{local_as_id}")
         local_as.add_links(bgp_links)

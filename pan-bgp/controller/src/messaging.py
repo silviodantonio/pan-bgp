@@ -45,8 +45,11 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
     def SendBGPPaths(self, request, context):
 
+
         local_as_id = request.local_as
         recv_bgp_paths = request.bgp_paths
+
+        logger.debug(f"Got new as_paths from {local_as_id}")
 
         # convert gRPC object to dict
         bgp_paths = {}
