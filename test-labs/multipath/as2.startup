@@ -2,7 +2,8 @@ ip addr add 192.0.2.6/30 dev eth0
 ip addr add 192.0.2.9/30 dev eth1
 ip addr add 198.51.100.2/24 dev eth2
 
+ip addr add 203.0.113.2/32 dev lo
+
 systemctl start frr
 
-# sleep 3
 # systemctl start panbgpd_node
