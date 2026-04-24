@@ -7,6 +7,8 @@ import core
 import controller_pb2
 import controller_pb2_grpc
 
+from graph import Link
+
 logger = logging.getLogger(__name__)
 
 
@@ -14,14 +16,12 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
     def SendASInfo(self, request, context):
 
-        local_as_num = request.local_as
-        peers_list = request.remote_as_list
-        prefix_list = request.prefix_list
+        local_as_num: int = request.local_as
+        identity_prefix: str = request.identity_prefix
+        attached_prefixes: list[str] = request.prefix_list
 
-        logger.info(f"Received info message from AS{local_as_num}")
-        logger.debug(f"ASN: {local_as_num}, neighbors: {peers_list}, prefixes: {prefix_list}")
-
-        core.add_as(local_as_num, peers_list, prefix_list)
+        # Why not create directly a new node in the graph?
+        core.add_as(local_as_num, identity_prefix, attached_prefixes)
 
         return controller_pb2.ResponseStatus(status="OK")
 
@@ -45,17 +45,28 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
     def SendBGPPaths(self, request, context):
 
-
         local_as_id = request.local_as
         recv_bgp_paths = request.bgp_paths
 
         logger.debug(f"Got new as_paths from {local_as_id}")
 
-        # convert gRPC object to dict
-        bgp_paths = {}
+        bgp_paths = []
         for recv_bgp_path in recv_bgp_paths:
-            bgp_paths[recv_bgp_path.destination] = recv_bgp_path.as_path
+            dest_prefix: str = recv_bgp_path.dest_prefix
+            as_path: list[int] = recv_bgp_path.as_path
+            as_path_metadata = recv_bgp_path.metadata
 
+            # convert metadata into a dict
+            metadata_dict: dict[str, str] = {}
+            for metadata_entry in as_path_metadata:
+                key = metadata_entry.key
+                value = metadata_entry.value
+                metadata_dict[key] = value
+
+            bgp_path = Link(dest_prefix, as_path, metadata_dict)
+            bgp_paths.append(bgp_path)
+
+        logger.debug("Adding paths to graph")
         core.add_bgp_paths(local_as_id, bgp_paths)
 
         return controller_pb2.ResponseStatus(status="OK")

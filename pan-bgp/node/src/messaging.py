@@ -5,12 +5,11 @@ from threading import Thread
 
 import grpc
 
-import core
+from frr import Path
 import controller_pb2
 import controller_pb2_grpc
 
 logger = logging.getLogger(__name__)
-node = core.node_singleton
 
 # This is a decorator
 def _retry_with_rand_backoff(function):
@@ -19,7 +18,7 @@ def _retry_with_rand_backoff(function):
         base = 2            # binary exponential backoff
 
         min_wait_time = 1
-        max_wait_time = 4   # this limits max wait time
+        max_wait_time = 4   # [seconds] this limits max wait time
 
         attempt = 0
         max_attempts = 5
@@ -36,7 +35,7 @@ def _retry_with_rand_backoff(function):
 
             except Exception as e:
             # if something goes wrong, retry after some time
-                logger.debug(f"Controller raised an exception: {e}")
+                logger.debug(f"Controller raised an exception while calling {function}: {e}")
                 if attempt < max_attempts:
                     t = random.random() * min(wait_time, max_wait_time)
                     logger.debug(f"Attempt number {attempt+1}, retrying after {t}")
@@ -52,10 +51,13 @@ def _retry_with_rand_backoff(function):
 
 class Messager:
 
-    def __init__(self, address, port):
-        self.address = address
-        self.port = port
+    def __init__(self, config_data: dict[str], node):
+
+        self.address = config_data["controller_address"]
+        self.port = config_data["controller_port"]
         self.address_string = f"{self.address}:{self.port}"
+        self.beaconing_rate = config_data["beaconing_rate"]
+        self.node = node
 
     @_retry_with_rand_backoff
     def send_as_info(self):
@@ -63,15 +65,15 @@ class Messager:
         with grpc.insecure_channel(self.address_string) as channel:
             stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
 
-            local_as = node.local_asn
-            remote_as_set = node.bgp_peers
-            attached_prefixes = node.attached_prefixes
+            local_as = self.node.asn
+            identity_prefix = self.node.identity_prefix
+            attached_prefixes = self.node.attached_prefixes
 
             logger.info("Sending AS info message to controller")
-            logger.debug(f"Neighbors: {remote_as_set}, attached prefixes: {attached_prefixes}")
+            logger.debug(f"Info: AS{local_as} ({identity_prefix}), attached prefixes: {attached_prefixes}")
 
             response = stub.SendASInfo(controller_pb2.ASInfo(local_as=local_as,
-                                                             remote_as_list=remote_as_set,
+                                                             identity_prefix=identity_prefix,
                                                              prefix_list=attached_prefixes))
 
         logger.info("Received: " + response.status)
@@ -83,7 +85,7 @@ class Messager:
         with grpc.insecure_channel(self.address_string) as channel:
             stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
 
-            local_as = node.local_asn
+            local_as = self.node.asn
             logger.info(f"Requesting paths for {dest_prefix}")
 
             destination_prefix = controller_pb2.Destination(local_as=local_as, dest_prefix=dest_prefix)
@@ -107,26 +109,37 @@ class Messager:
         with grpc.insecure_channel(self.address_string) as channel:
             stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
 
-            local_as = node.local_asn
-            bgp_paths = node.get_paths()
+            local_as = self.node.asn
+            as_paths: dict[str, Path] = self.node.get_as_paths()
 
+            # construct grpc BGPPath objects
+            grpc_bgp_paths: list[controller_pb2.BGPPath] = []
+            for dest_prefix, as_path in as_paths.items():
+                # extract metadata from Path object
+                path_metadata = []
+                for key, value in as_path.metadata.items():
+                    grpc_metadata_entry = controller_pb2.Metadata(key=str(key), value=str(value))
+                    path_metadata.append(grpc_metadata_entry)
 
-            grpc_bgp_paths = []
-            for dest, paths in bgp_paths.items():
-                for path in paths:
-                    grpc_bgp_paths.append(controller_pb2.BGPPath(destination=path.dest_as, 
-                                                                 as_path=path.path))
+                grpc_bgp_path = controller_pb2.BGPPath(dest_prefix=as_path.dest_prefix, 
+                                               as_path=as_path.path,
+                                               metadata=path_metadata)
+                grpc_bgp_paths.append(grpc_bgp_path)
+
 
             logger.info("Sending AS Paths to controller")
-            logger.debug(f"AS Paths: {bgp_paths}")
             request = controller_pb2.BGPPaths(local_as=local_as, bgp_paths=grpc_bgp_paths)
 
             response = stub.SendBGPPaths(request)
 
             logger.info("Received: " + response.status)
 
+    def start_path_beaconing(self, beaconing_rate):
 
-class ASPathBeaconingThread(Thread):
+        beaconing_thread = _BeaconingThread(self, beaconing_rate)
+        beaconing_thread.start()
+
+class _BeaconingThread(Thread):
 
     def __init__(self, messager: Messager, beaconing_rate: int):
         super().__init__()
@@ -140,7 +153,6 @@ class ASPathBeaconingThread(Thread):
             try:
                 self.messager.send_as_paths()
             except Exception as e:
-                logger.warn(f"Couldn't send AS Paths to controller. Raised exception:\n{e}")
+                logger.warning(f"Couldn't send AS Paths to controller. Raised exception:\n{e}")
 
             sleep(self.beaconing_rate)
-

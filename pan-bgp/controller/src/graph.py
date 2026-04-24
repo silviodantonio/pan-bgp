@@ -1,6 +1,7 @@
-from collections import deque, defaultdict
+from collections import defaultdict
 from heapq import heapify, heappop, heappush
 import logging
+from threading import Lock
 
 
 # Get a logger instance
@@ -22,74 +23,95 @@ def cost_untrusted_AS(link) -> int:
 
     return cost
 
+def cost_rtt(link) -> float:
+
+    cost = 9999
+    rtt_link = link.metadata.get('rtt')
+    if rtt_link is not None:
+        cost = rtt_link
+    return cost
+
 def filter_trusted_links(link):
     trusted = False
-    dest_as = singleton_network_graph.ases.get(link.dest)
-    if (dest_as is not None) and dest_as.trusted and (len(link.path) == 1):
-        trusted = True
-    logger.debug(f"Link: {link.source} {link} is trusted? {trusted}")
+    dest_as = singleton_network_graph.identity2as.get(link.dest_prefix)
+    if dest_as is not None:
+        if dest_as.trusted and len(link.path) == 1:
+            trusted = True
     return trusted
+
+def filter_links_rtt(link):
+    if "rtt" in link.metadata:
+        return True
+    else:
+        return False
+
 
 class Link():
 
-    # Not using AS object since destination could be
-    # a non-controlled AS, for which AS objects are not created.
-    def __init__(self, source: int, dest: int, path: list[int]):
-        self.source: int = source
-        self.dest: int = dest
-
-        # List will be empty for directly connected peers.
-        # Otherwise, it will contain the AS path extracted from the controller.
+    # This class is basically a BGP route with some metadata
+    def __init__(self, dest_prefix: str, path: list[int], metadata: dict):
+        self.dest_prefix: str = dest_prefix
         self.path: list[int] = path
+        self.metadata: dict = metadata
 
     def __str__(self):
-        link_elem_list = []
-        # link_elem_list.append(str(self.source))
-        for hop in self.path:
-            link_elem_list.append(str(hop))
-        # link_elem_list.append(str(self.dest))
-        return ' '.join(link_elem_list)
+        strings_list = []
+
+        strings_list.append(f"Path: {str(self.dest_prefix)}")
+        strings_list.append(str(self.path))
+        strings_list.append(str(self.metadata))
+
+        return ", ".join(strings_list)
+
+    def __repr__(self):
+        return self.__str__()
 
 
 class AS():
 
-    def __init__(self, as_number):
+    def __init__(self, as_number, identity_prefix):
+
         self.number: int = as_number
-
-        # Maybe useless. The fact that the object exists
-        # means that the AS is controlled.
-        self.controlled = True
+        self.identity_prefix: str = identity_prefix
         self.trusted = True
+        self.announced_prefixes: list[str] = []
+        self.links: dict[str, Link] = {}
+        self.links_lock = Lock()
 
-        self.prefixes: set[str] = set()
-        self.links: dict[int, Link] = {}
-
-    def add_prefix(self, prefix: str) -> None:
+    def announces_prefix(self, prefix: str) -> None:
         if is_owner(self.number, prefix):
-            self.prefixes.add(prefix)
+            self.announced_prefixes.append(prefix)
         else:
             self.trusted = False
 
-    def add_links(self, links: list[Link]) -> None:
-
+    def update_links(self, links: list[Link]) -> None:
+        self.links_lock.acquire()
         for link in links:
-            # replace known links if different from previously known
-            if link.dest in self.links:
-                if self.links.get(link.dest) != link:
-                    self.links[link.dest] = link
-                    logger.debug(f'Updating link for {link.dest}: {link}')
-            # otherwise just add it to the list
-            else:
-                logger.debug(f'Adding new link for {link.dest}: {link}')
-                self.links[link.dest] = link
+            self.links[link.dest_prefix] = link
+        self.links_lock.release()
+
+    def get_links(self):
+        self.links_lock.acquire()
+        links = self.links.values()
+        self.links_lock.release()
+        return links
 
     def __str__(self):
-        links = [str(link) for link in self.links.values()]
-        links_str = ', '.join(links)
-        return f"""AS{self.number:}:
-            Trusted: {self.trusted}
-            Prefixes [{len(self.prefixes)}]: {str(self.prefixes)}
-            Links [{len(self.links)}]: {links_str}"""
+        strings_list = []
+
+        trusted_status = "trusted" if self.trusted else "untrusted"
+        strings_list.append(f"AS{self.number}: {self.identity_prefix} {trusted_status}")
+
+        prefixes_str = f"Announced prefixes ({len(self.announced_prefixes)}): {self.announced_prefixes}"
+        strings_list.append(prefixes_str)
+
+        links_str = f"Links ({len(self.links)}): {list(self.links.values())}"
+        strings_list.append(links_str)
+
+        return "\n".join(strings_list)
+
+    def __repr__(self):
+        return self.__str__()
 
 
 class NetworkGraph():
@@ -97,21 +119,21 @@ class NetworkGraph():
     def __init__(self):
         self.ases: dict[int, AS] = {}
         self.prefix_table: dict[str, AS] = {}
+        self.identity2as: dict[str, AS] = {}
 
     def add_as(self, new_as: AS):
         if new_as.number in self.ases:
             raise ValueError(f"AS{new_as.number} is already in NetworkGraph")
         else:
             self.ases[new_as.number] = new_as
-            for prefix in new_as.prefixes:
+            for prefix in new_as.announced_prefixes:
                 self.prefix_table[prefix] = new_as
+            self.identity2as[new_as.identity_prefix] = new_as
             logger.debug("New AS node in graph")
 
 
-    def find_all_paths(self, start_as: AS, dest_as: AS, path=[]) -> list[list[AS]]:
+    def find_all_paths(self, start_as: AS, dest_as: AS, link_filter, path=[]) -> list[list[AS]]:
         # Thanks to Gemini.
-        # WARN: not fully understood and
-        # being recursive might also work extremely poorly on large graphs.
 
         current_path = path.copy()
         current_path.extend([start_as])
@@ -120,67 +142,29 @@ class NetworkGraph():
             return [current_path]
 
         paths = []
-        for neighbor_as in start_as.neighbors:
+
+        filtered_links: Link = filter(link_filter, start_as.get_links())
+        neighbor_ases = []
+        for link in filtered_links:
+            neighbor_asn = link.path[-1]
+            neighbor_as_obj = self.ases.get(neighbor_asn)
+            if neighbor_as_obj is not None:
+                neighbor_ases.append(neighbor_as_obj)
+
+        for neighbor_as in neighbor_ases:
             if neighbor_as not in current_path:
                 new_paths = self.find_all_paths(
-                    neighbor_as, dest_as, current_path)
+                    neighbor_as, dest_as, link_filter, current_path)
                 paths.extend(new_paths)
 
         return paths
 
-    def _find_trusted_paths(self, start_as: int, dest_as: int, path=[]) -> list[list[int]]:
-        # Thanks to Gemini part II (this code is copied from find_all_paths)
-        # I don't fully understand what's happening here and what is being passed during
-        # the recursion.
+    def trusted_paths(self, start_asn: int, dest_asn: int):
 
-        current_path = path.copy()
-        current_path.extend([start_as])
+        start_as = self.ases[start_asn]
+        dest_as = self.ases[dest_asn]
+        return self.find_all_paths(start_as, dest_as, filter_trusted_links)
 
-        if start_as == dest_as:
-            return [current_path]
-
-        # Get trusted peers
-        start_as_obj = self.ases.get(start_as)
-        trusted_links = filter(filter_trusted_links, start_as_obj.links.values())
-        trusted_peers: int = [link.dest for link in trusted_links]
-
-        paths = []
-        for trusted_peer in trusted_peers:
-            if trusted_peer not in current_path:
-                new_paths = self._find_trusted_paths(
-                    trusted_peer, dest_as, current_path)
-                paths.extend(new_paths)
-
-        return paths
-
-    def trusted_paths(self, start_as: int, dest_as: int) -> list[list[int]]:
-        # Here there was a BFS graph check.
-        return self._find_trusted_paths(start_as, dest_as, [])
-
-    def bfs(self, start_as: int) -> set[int]:
-        # TODO: (?) if i want to use this i need to adapt it. 
-        # It needs to use the link abstraction.
-
-        # use bfs to explore the graph component to which start_as belongs
-        logger.debug(f"Computing reachable nodes from AS{start_as}")
-
-        visited = set()
-        nodes_deque = deque([start_as])
-
-        # while i have some nodes to visit
-        while len(nodes_deque) != 0:
-            # get the current node
-            current_node = nodes_deque.popleft()
-            if current_node not in visited:
-                # if it's a new node
-                visited.add(current_node)
-                # add to visit all directly connected nodes
-                current_as_obj = self.ases.get(current_node)
-                for link_dest, link_path in current_as_obj.links.items():
-                    if link_path == []:
-                        nodes_deque.append(link_dest)
-
-        return visited
 
     def dijkstra(self, local_as_num, link_cost_function, link_filter_function=None) -> list[list[int]]:
 

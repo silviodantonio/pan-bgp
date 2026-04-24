@@ -10,6 +10,7 @@ paths <prefix> <policy> <num>       request <num> paths for <prefix>, satisfying
 
 policies: trusted_paths
           minimize_untrusted (returns only one path)
+          minimize_rtt (returns only one path)
 """
 
 # Thanks to gemini

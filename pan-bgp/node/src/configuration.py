@@ -1,7 +1,7 @@
 import tomllib
 import logging
 
-class Configuration:
+class Configurator:
 
 
     def __init__(self, config_file=None):
@@ -22,10 +22,7 @@ class Configuration:
         if self.config_data is None:
             raise ValueError("The configuration file cannot be empty")
 
-        # Raise error if controller config is missing
-        self.controller = self.config_data.get('controller')
-        if self.controller == None:
-            raise ValueError("Controller section is required in config file")
+        self._configure_main()
 
         # For these check the config file, otherwise load some defaults
         self._configure_logging()
@@ -33,6 +30,26 @@ class Configuration:
 
         logger = logging.getLogger(__name__)
         logger.info("Configuration done")
+
+    def _configure_main(self) -> None:
+
+        # Load main configuration data.
+        # Most of the stuff here is mandatory
+        self.main = self.config_data.get('main')
+        if self.main == None:
+            raise ValueError("Main section is required in config file")
+
+        if self.main.get("identity_prefix") is None:
+            raise ValueError("In main section: identity_prefix is required")
+
+        if self.main.get("beaconing_rate") is None:
+            self.main["beaconing_rate"] = 5
+
+        if self.main.get("rib_refresh_rate") is None:
+            self.main["rib_refresh_rate"] = 2
+
+        if self.main.get("ping_rate") is None:
+            self.main["ping_rate"] = 2
 
 
     def _configure_logging(self) -> None:

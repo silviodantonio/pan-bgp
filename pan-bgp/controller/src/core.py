@@ -11,7 +11,7 @@ def compute_paths(source_as_number: int,
                   policy: str,
                   num_paths: int) -> list[list[int]]:
 
-    logger.debug(f"Current AS topology: {topology_graph}")
+    logger.debug(f"Current topology:\n{topology_graph}")
 
     found_paths = []
 
@@ -34,6 +34,13 @@ def compute_paths(source_as_number: int,
                                                             dest_as.number,
                                                             graph.cost_untrusted_AS, None)
         found_paths = [min_untrusted_path]
+
+    elif policy == 'minimize_rtt':
+        min_rtt_path, rtt = topology_graph.least_cost_path(source_as_number,
+                                                            dest_as.number,
+                                                           graph.cost_rtt, None)
+        found_paths = [min_rtt_path]
+
     else:
         logger.info("Unknown policy")
 
@@ -45,38 +52,21 @@ def compute_paths(source_as_number: int,
 
 
 
-def add_as(local_as_num, peers_list, prefix_list):
+def add_as(local_as_num, identity_prefix, prefix_list):
     # if not exists, build a new node
     if local_as_num not in topology_graph.ases:
         logger.info(f"Creating object for AS{local_as_num}")
-        new_as = graph.AS(local_as_num)
-
-
-        # build links
-        peer_links = []
-        for peer in peers_list:
-            peer_link = graph.Link(local_as_num, peer, [peer])
-            peer_links.append(peer_link)
-
-        # add them to new_as
-        logger.debug(f"Adding link objects for peers to AS{local_as_num}")
-        new_as.add_links(peer_links)
+        new_as = graph.AS(local_as_num, identity_prefix)
 
         logger.debug(f"Adding prefixes to AS{local_as_num}")
         for prefix in prefix_list:
-            new_as.add_prefix(prefix)
+            new_as.announces_prefix(prefix)
         topology_graph.add_as(new_as)
 
-def add_bgp_paths(local_as_id: int, bgp_paths: dict[int, list[int]]):
+def add_bgp_paths(local_as_id: int, bgp_paths: list[graph.Link]):
 
-        local_as = topology_graph.ases.get(local_as_id)
+    local_as = topology_graph.ases.get(local_as_id)
+    logger.debug(f"Adding/updating paths for AS{local_as_id}")
+    local_as.update_links(bgp_paths)
 
-        # build link objects
-        bgp_links = []
-        for bgp_dest, bgp_path in bgp_paths.items():
-            bgp_link = graph.Link(local_as_id, bgp_dest, bgp_path)
-            bgp_links.append(bgp_link)
-
-        # add them to the as_obj
-        logger.debug(f"Adding/updating paths for AS{local_as_id}")
-        local_as.add_links(bgp_links)
+    logger.debug(f"Current topology:\n{topology_graph}")

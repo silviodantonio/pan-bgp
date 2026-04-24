@@ -1,41 +1,77 @@
 import sys
 import logging
 
-from configuration import Configuration
+from threading import Thread
+from time import sleep
+
+from configuration import Configurator
 import socket_interface
 import messaging
 import core
+import frr
 
-if __name__=='__main__':
+class PathsUpdaterService(Thread):
+
+    def __init__(self, node, refresh_rate: int):
+        super().__init__()
+        self.node = node
+        self.refresh_rate = refresh_rate
+
+    def run(self):
+
+        try:
+            while True:
+                as_paths_list = frr.get_as_paths()
+                if len(as_paths_list) != 0:
+                    logger.info("Got new AS paths. Updating node info")
+                    self.node.update_as_paths(as_paths_list)
+                    logger.debug(self.node)
+                else:
+                    logger.debug("No new as paths in RIB")
+
+                sleep(self.refresh_rate)
+        except Exception as e:
+            logger.error(f"An exception was raised when attempting to refresh AS paths. {e}")
+
+if __name__ == '__main__':
 
     try:
-        configuration = Configuration("/etc/panbgp/panbgp.conf")
+        configuration = Configurator("/etc/panbgp/panbgp.conf")
     except Exception as e:
         raise e
         sys.exit(1)
 
     logger = logging.getLogger(__name__)
 
-    controller_address = configuration.controller["address"]
-    controller_port = configuration.controller["port"]
-    messager = messaging.Messager(controller_address, controller_port)
+    logger.info("Initializing Node object")
+    initial_as_paths = frr.get_as_paths()
+    initial_as_paths_dict = {}
+    for as_path in initial_as_paths:
+        initial_as_paths_dict[as_path.dest_prefix] = as_path
 
-    logger.info("Sending node info for the first time")
+    core.node_singleton = core.Node(
+            frr.get_asn(),
+            frr.get_attached_prefixes(),
+            initial_as_paths_dict,
+            configuration.main["identity_prefix"])
+
+    logger.debug(core.node_singleton)
+
+    logger.info("Initializing messager for talking to controller")
+    messager = messaging.Messager(configuration.main, core.node_singleton)
+
+    logger.info("Sending first message to controller")
     messager.send_as_info()
 
-    # Periodically get info about paths and their RTT
-    logger.info("Starting services for getting data about AS paths")
-    paths_updater = core.PathsUpdater(2)
-    paths_updater.start()
+    logger.info("Starting service: paths updater service")
+    rib_refresh_rate = configuration.main["rib_refresh_rate"]
+    paths_updater_service = PathsUpdaterService(core.node_singleton, rib_refresh_rate)
+    paths_updater_service.start()
 
-    # prefix_poller = core.PrefixPoller(2)
-    # prefix_poller.start()
+    logger.info("Starting service: controller beaconing")
+    beaconing_rate = configuration.main["beaconing_rate"]
+    messager.start_path_beaconing(beaconing_rate)
 
-    logger.info("Starting AS paths beaconing thread")
-    beacon_thread = messaging.ASPathBeaconingThread(messager, 5)
-    beacon_thread.start()
-
-    # I would like not to pass controller info here
     local_socket_interface_addr = configuration.interactive_interface["address"]
     local_socket_interface_port = configuration.interactive_interface["port"]
 
@@ -46,7 +82,11 @@ if __name__=='__main__':
             messager)
     local_socket_interface_thread.start()
 
-    try:
-        messager.request_path("192.0.2.0/30", "trusted_paths", 5)
-    except Exception as e: 
-        logger.debug(f"An exception occurred while requesting paths: {e}")
+    logger.info("Startup done")
+
+    # This if for testing purposes
+
+    # try:
+    #     messager.request_path("192.0.2.0/30", "trusted_paths", 5)
+    # except Exception as e: 
+    #     logger.debug(f"An exception occurred while requesting paths: {e}")

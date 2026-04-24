@@ -3,6 +3,8 @@ import subprocess as sp
 import json
 import hashlib
 
+from core import Path
+
 """
 This module contains a collections of functions that are responsible of 
 interfacing with `vtysh`, the unified interface for managing frr and all its
@@ -11,15 +13,13 @@ supported daemons.
 
 logger = logging.getLogger(__name__)
 
-_bgp_paths_hash = hashlib.sha1(b"")
+_rib_hash = hashlib.sha1(b"")
 
 
 def _call_vtysh(vtysh_command) -> str | None:
 
     # Probably the command prefix has to be more general.
     # for now it talks directly to bgpd
-
-    logger.info(f"Invoking vtysh command: {vtysh_command}")
 
     command = ["vtysh", "-d", "bgpd", "-c"]
     command.extend(vtysh_command)
@@ -31,13 +31,13 @@ def _call_vtysh(vtysh_command) -> str | None:
         command_out = completed_proc.stdout
 
     except sp.CalledProcessError as proc_err:
-        logging.critical(f"Couldn't interact with frr: {proc_err}")
+        logger.critical(f"Couldn't interact with frr: {proc_err}")
 
     finally:
         return command_out
 
 
-def local_asn() -> int | None:
+def get_asn() -> int | None:
 
     local_as = None
 
@@ -50,6 +50,7 @@ def local_asn() -> int | None:
     return local_as
 
 
+# Probably not needed anymore
 def bgp_peers_asn() -> list[int]:
 
     remote_ases = []
@@ -82,21 +83,6 @@ def get_attached_prefixes() -> list[str]:
     return attached_prefixes
 
 
-class Path:
-
-    def __init__(self, dest_prefix, dest_as, path, metadata):
-        self.dest_prefix: str = dest_prefix
-        self.dest_as: int = dest_as
-        self.path: list[int] = path
-        self.metadata: dict[str] = metadata
-
-    def __str__(self):
-        return f"{self.dest_prefix}: {self.path} ({self.metadata})"
-
-    def __repr__(self):
-        return self.__str__()
-
-
 def get_as_paths() -> list[Path] :
     """
     This function extract the bestpaths from the BGP RIB.
@@ -105,34 +91,32 @@ def get_as_paths() -> list[Path] :
     returns an empty list.
     """
 
-    global _bgp_paths_hash
+    global _rib_hash
     paths_list = []     # init return list
 
     # get RIB from FRR
     get_rib_command = ["show ip bgp json"]
-    full_rib = _call_vtysh(get_rib_command)
-    new_bgp_paths_hash = hashlib.sha1(bytes(full_rib, "utf8"))
+    new_rib = json.loads(_call_vtysh(get_rib_command)).get("routes")
+    logger.debug(f"RIB: {new_rib}")
+    new_rib_hash = hashlib.sha1(bytes(str(new_rib), "utf8"))
 
-    logger.debug(f"""Old RIB hash: {_bgp_paths_hash.hexdigest()}
-New RIB hash: {new_bgp_paths_hash.hexdigest()}""")
+    logger.debug(f"Old RIB hash: {_rib_hash.hexdigest()}")
+    logger.debug(f"New RIB hash: {new_rib_hash.hexdigest()}")
 
     # check changes in RIB
-    if new_bgp_paths_hash.digest() != _bgp_paths_hash.digest() :
-        logger.debug("Detected changed RIB")
+    if new_rib_hash.digest() != _rib_hash.digest() :
+        logger.info("Detected RIB changes")
 
         # update old hash
-        _bgp_paths_hash = new_bgp_paths_hash
-
-        # extract only data about as_paths
-        bgp_paths = json.loads(full_rib).get("routes")
+        _rib_hash = new_rib_hash
  
         # update path_list with new Path objects
-        for prefix, paths in bgp_paths.items():
-            for path in paths:
+        for dest_prefix, as_paths in new_rib.items():
+            for as_path in as_paths:
                 # include only bestpaths and avoid paths for self-originated prefixes
-                if path.get("bestpath") == True and path.get("path"):
-                    as_path = [int(as_num) for as_num in path.get("path").split(' ')]
-                    new_path_obj = Path(prefix, as_path[-1], as_path, {'bestpath': True})
+                if as_path.get("bestpath") == True and as_path.get("path"):
+                    int_as_path = [int(as_num) for as_num in as_path.get("path").split(' ')]
+                    new_path_obj = Path(dest_prefix, int_as_path, {'bestpath': True})
                     paths_list.append(new_path_obj)
 
     return paths_list
