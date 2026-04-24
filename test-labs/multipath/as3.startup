@@ -1,5 +1,5 @@
 ip addr add 192.0.2.10/30 dev eth0
-ip addr add 192.0.2.13/30 dev eth1
+ip addr add 192.0.2.12/30 dev eth1
 ip addr add 192.0.2.25/30 dev eth2
 ip addr add 198.51.100.3/24 dev eth3
 
