@@ -33,7 +33,7 @@ def cost_rtt(link) -> float:
 
 def filter_trusted_links(link):
     trusted = False
-    dest_as = singleton_network_graph.identity2as.get(link.dest_prefix)
+    dest_as = singleton_network_graph.ases.get(link.path[-1])
     if dest_as is not None:
         if dest_as.trusted and len(link.path) == 1:
             trusted = True
@@ -119,7 +119,6 @@ class NetworkGraph():
     def __init__(self):
         self.ases: dict[int, AS] = {}
         self.prefix_table: dict[str, AS] = {}
-        self.identity2as: dict[str, AS] = {}
 
     def add_as(self, new_as: AS):
         if new_as.number in self.ases:
@@ -128,7 +127,6 @@ class NetworkGraph():
             self.ases[new_as.number] = new_as
             for prefix in new_as.announced_prefixes:
                 self.prefix_table[prefix] = new_as
-            self.identity2as[new_as.identity_prefix] = new_as
             logger.debug("New AS node in graph")
 
 
@@ -137,6 +135,8 @@ class NetworkGraph():
 
         current_path = path.copy()
         current_path.extend([start_as])
+
+        logger.debug(f"Visiting AS{start_as.number}")
 
         if start_as == dest_as:
             return [current_path]
@@ -148,8 +148,12 @@ class NetworkGraph():
         for link in filtered_links:
             neighbor_asn = link.path[-1]
             neighbor_as_obj = self.ases.get(neighbor_asn)
-            if neighbor_as_obj is not None:
+            if (neighbor_as_obj is not None and 
+                neighbor_as_obj not in neighbor_ases):
                 neighbor_ases.append(neighbor_as_obj)
+
+        neighbors_nums = [int(as_obj.number) for as_obj in neighbor_ases]
+        logger.debug(f"Extracted neighbors: {neighbors_nums}")
 
         for neighbor_as in neighbor_ases:
             if neighbor_as not in current_path:

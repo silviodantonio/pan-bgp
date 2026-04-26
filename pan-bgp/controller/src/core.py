@@ -47,8 +47,13 @@ def compute_paths(source_as_number: int,
 
     # Pick the number of paths requested
     found_paths = found_paths[:num_paths]
+    # convert from list[AS] to list[int]
+    found_paths_int = []
+    for found_path in found_paths:
+        found_path_int = [as_obj.number for as_obj in found_path]
+        found_paths_int.append(found_path_int)
 
-    return found_paths
+    return found_paths_int
 
 
 
