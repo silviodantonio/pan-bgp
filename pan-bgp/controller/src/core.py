@@ -32,7 +32,8 @@ def compute_paths(source_as_number: int,
         # NOTE: returns only one path since dijkstra builds a minimum spanning tree.
         min_untrusted_path, cost = topology_graph.least_cost_path(source_as_number,
                                                             dest_as.number,
-                                                            graph.cost_untrusted_AS, None)
+                                                            graph.cost_untrusted_AS, 
+                                                            graph.filter_peer_link)
         found_paths = [min_untrusted_path]
 
     elif policy == 'minimize_rtt':
@@ -47,13 +48,8 @@ def compute_paths(source_as_number: int,
 
     # Pick the number of paths requested
     found_paths = found_paths[:num_paths]
-    # convert from list[AS] to list[int]
-    found_paths_int = []
-    for found_path in found_paths:
-        found_path_int = [as_obj.number for as_obj in found_path]
-        found_paths_int.append(found_path_int)
 
-    return found_paths_int
+    return found_paths
 
 
 

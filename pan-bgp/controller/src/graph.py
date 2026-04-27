@@ -16,8 +16,8 @@ def is_owner(as_number, prefix) -> bool:
 def cost_untrusted_AS(link) -> int:
 
     cost = 0
-    for as_ in link.path:
-        as_obj = singleton_network_graph.ases.get(as_)
+    for as_num in link.path:
+        as_obj = singleton_network_graph.ases.get(as_num)
         if (as_obj is None) or (as_obj.trusted == False):
             cost += 1
 
@@ -31,20 +31,31 @@ def cost_rtt(link) -> float:
         cost = rtt_link
     return cost
 
+def filter_peer_link(link):
+    panbgp_peer = False
+    if link.dest_prefix in singleton_network_graph.panbgp_identity:
+        panbgp_peer = True
+    return panbgp_peer
+
 def filter_trusted_links(link):
-    trusted = False
-    dest_as = singleton_network_graph.ases.get(link.path[-1])
-    if dest_as is not None:
-        if dest_as.trusted and len(link.path) == 1:
-            trusted = True
-    return trusted
+
+    if not filter_peer_link(link):
+        return False
+    if len(link.path) > 1:
+        return False
+
+    dest_as_num = link.path[-1]
+    dest_as_obj = singleton_network_graph.ases.get(dest_as_num)
+    if dest_as_obj is None:
+        return False
+    else:
+        return dest_as_obj.trusted
 
 def filter_links_rtt(link):
     if "rtt" in link.metadata:
         return True
     else:
         return False
-
 
 class Link():
 
@@ -74,6 +85,10 @@ class AS():
         self.number: int = as_number
         self.identity_prefix: str = identity_prefix
         self.trusted = True
+
+        # identity prefix: as path to prefix
+        self.panbgp_link: dict[str, Link] = {}
+
         self.announced_prefixes: list[str] = []
         self.links: dict[str, Link] = {}
         self.links_lock = Lock()
@@ -119,6 +134,7 @@ class NetworkGraph():
     def __init__(self):
         self.ases: dict[int, AS] = {}
         self.prefix_table: dict[str, AS] = {}
+        self.panbgp_identity: dict[str, AS] = {}
 
     def add_as(self, new_as: AS):
         if new_as.number in self.ases:
@@ -127,6 +143,7 @@ class NetworkGraph():
             self.ases[new_as.number] = new_as
             for prefix in new_as.announced_prefixes:
                 self.prefix_table[prefix] = new_as
+            self.panbgp_identity[new_as.identity_prefix] = new_as
             logger.debug("New AS node in graph")
 
 
@@ -163,14 +180,20 @@ class NetworkGraph():
 
         return paths
 
-    def trusted_paths(self, start_asn: int, dest_asn: int):
+    def trusted_paths(self, start_asn: int, dest_asn: int) -> list[list[AS]]:
 
         start_as = self.ases[start_asn]
         dest_as = self.ases[dest_asn]
-        return self.find_all_paths(start_as, dest_as, filter_trusted_links)
+        found_paths = self.find_all_paths(start_as, dest_as, filter_trusted_links)
+
+        return_list = []
+        for found_path in found_paths:
+            return_list.append([as_obj.num for as_obj in found_path])
+
+        return return_list
 
 
-    def dijkstra(self, local_as_num, link_cost_function, link_filter_function=None) -> list[list[int]]:
+    def dijkstra(self, local_as_num, link_cost_function, link_filter_function=None):
 
         distance = defaultdict(lambda : None)
         distance[local_as_num] = 0
@@ -205,7 +228,7 @@ class NetworkGraph():
                 filtered_neighbors_links = filter(link_filter_function, neighbors_links)
 
                 for link in filtered_neighbors_links:
-                    neighbors_with_cost.append((link.dest, link_cost_function(link)))
+                    neighbors_with_cost.append((link.path[-1], link_cost_function(link)))
 
             # Update distances
             for neighbor, cost in neighbors_with_cost:
@@ -236,20 +259,20 @@ class NetworkGraph():
                 current_node = predecessor[current_node]
 
             least_cost_path.reverse()
-            logger.debug(f"Path returend from Dijkstra: {least_cost_path}")
+            logger.debug(f"Path returned from Dijkstra: {least_cost_path}")
 
-            # Fill "gaps" in the returned path
-            as_num = least_cost_path[0]
-            complete_path.append(as_num)
-            for i in range(len(least_cost_path)-1):
-                # Append paths of links as_num to next_as_num
-                next_as_num = least_cost_path[i+1]
+            complete_path.append(least_cost_path[0])
 
-                as_obj = singleton_network_graph.ases[as_num]
-                link_to_next = as_obj.links[next_as_num]
+            for i in range(len(least_cost_path) - 1):
+                current_as_num = least_cost_path[i]
+                current_as_obj = self.ases[current_as_num]
+                next_as_num = least_cost_path[i + 1]
 
-                complete_path.extend(link_to_next.path)
-                as_num = next_as_num
+                filtered_links  = filter(link_filter_function, current_as_obj.links.values())
+                for link in filtered_links:
+                    if link.path[-1] == next_as_num:
+                        complete_path.extend(link.path)
+                        break
 
             logger.debug(f"Computed \"full path\": {complete_path}")
 
