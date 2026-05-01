@@ -1,127 +1,52 @@
 from collections import defaultdict
 from heapq import heapify, heappop, heappush
 import logging
-from threading import Lock
-
 
 # Get a logger instance
 logger = logging.getLogger(__name__)
 
+# Classes for abstracting graphs
 
-# Dummy RPKI prefix validator
-def is_owner(as_number, prefix) -> bool:
-    # TODO: implement
-    return True
+class Node:
+    def __init__(self, id: int, attributes: dict = None, adjacency_map: dict = None):
+        self.id = id
+        self.attributes: dict = {} if attributes is None else attributes
+        self.adjacency_map: dict[Node, Edge] = {} if adjacency_map is None else adjacency_map
 
-def cost_untrusted_AS(link) -> int:
-
-    cost = 0
-    for as_num in link.path:
-        as_obj = singleton_network_graph.ases.get(as_num)
-        if (as_obj is None) or (as_obj.trusted == False):
-            cost += 1
-
-    return cost
-
-def cost_rtt(link) -> float:
-
-    cost = 9999
-    rtt_link = link.metadata.get('rtt')
-    if rtt_link is not None:
-        cost = rtt_link
-    return cost
-
-def filter_peer_link(link):
-    panbgp_peer = False
-    if link.dest_prefix in singleton_network_graph.panbgp_identity:
-        panbgp_peer = True
-    return panbgp_peer
-
-def filter_trusted_links(link):
-
-    if not filter_peer_link(link):
-        return False
-    if len(link.path) > 1:
-        return False
-
-    dest_as_num = link.path[-1]
-    dest_as_obj = singleton_network_graph.ases.get(dest_as_num)
-    if dest_as_obj is None:
-        return False
-    else:
-        return dest_as_obj.trusted
-
-def filter_links_rtt(link):
-    if "rtt" in link.metadata:
-        return True
-    else:
-        return False
-
-class Link():
-
-    # This class is basically a BGP route with some metadata
-    def __init__(self, dest_prefix: str, path: list[int], metadata: dict):
-        self.dest_prefix: str = dest_prefix
-        self.path: list[int] = path
-        self.metadata: dict = metadata
+        logger.debug(f"initialized node {self.id}")
+        logger.debug(f"Node {self.id} attributes: {self.attributes}")
+        logger.debug(f"Node {self.id} adjacency_map: {self.adjacency_map}")
 
     def __str__(self):
         strings_list = []
-
-        strings_list.append(f"Path: {str(self.dest_prefix)}")
-        strings_list.append(str(self.path))
-        strings_list.append(str(self.metadata))
-
-        return ", ".join(strings_list)
+        strings_list.append(f"{self.id} (deg {len(self.adjacency_map)}) :")
+        edges = [(e.source.id, e.dest.id) for n, e in self.adjacency_map.items()]
+        strings_list.append(str(edges))
+        return " ".join(strings_list)
 
     def __repr__(self):
         return self.__str__()
 
+class Edge:
+    def __init__(self, source: Node, dest: Node, attributes=None):
+        self.source: Node = source
+        self.dest: Node = dest
+        self.attributes: dict = attributes if attributes is not None else {}
 
-class AS():
+# the Graph abstraction should have a minimal amount of methods.
+# think of it not as a class but more as data type
+class Graph:
 
-    def __init__(self, as_number, identity_prefix):
+    def __init__(self, nodes: dict = None):
+        self.nodes: dict[int, Node] = {} if nodes is None else nodes
 
-        self.number: int = as_number
-        self.identity_prefix: str = identity_prefix
-        self.trusted = True
-
-        # identity prefix: as path to prefix
-        self.panbgp_link: dict[str, Link] = {}
-
-        self.announced_prefixes: list[str] = []
-        self.links: dict[str, Link] = {}
-        self.links_lock = Lock()
-
-    def announces_prefix(self, prefix: str) -> None:
-        if is_owner(self.number, prefix):
-            self.announced_prefixes.append(prefix)
-        else:
-            self.trusted = False
-
-    def update_links(self, links: list[Link]) -> None:
-        self.links_lock.acquire()
-        for link in links:
-            self.links[link.dest_prefix] = link
-        self.links_lock.release()
-
-    def get_links(self):
-        self.links_lock.acquire()
-        links = self.links.values()
-        self.links_lock.release()
-        return links
+        logger.debug("Initialized a new graph")
+        logger.debug(f"Graph nodes: {self.nodes}")
 
     def __str__(self):
         strings_list = []
-
-        trusted_status = "trusted" if self.trusted else "untrusted"
-        strings_list.append(f"AS{self.number}: {self.identity_prefix} {trusted_status}")
-
-        prefixes_str = f"Announced prefixes ({len(self.announced_prefixes)}): {self.announced_prefixes}"
-        strings_list.append(prefixes_str)
-
-        links_str = f"Links ({len(self.links)}): {list(self.links.values())}"
-        strings_list.append(links_str)
+        for node in self.nodes.values():
+            strings_list.append(str(node))
 
         return "\n".join(strings_list)
 
@@ -129,158 +54,114 @@ class AS():
         return self.__str__()
 
 
-class NetworkGraph():
+# Path finding functions
 
-    def __init__(self):
-        self.ases: dict[int, AS] = {}
-        self.prefix_table: dict[str, AS] = {}
-        self.panbgp_identity: dict[str, AS] = {}
+def find_all_paths(graph, start: Node, dest: Node, path=[]) -> list[list[Node]]:
+    # Thanks to Gemini.
 
-    def add_as(self, new_as: AS):
-        if new_as.number in self.ases:
-            raise ValueError(f"AS{new_as.number} is already in NetworkGraph")
-        else:
-            self.ases[new_as.number] = new_as
-            for prefix in new_as.announced_prefixes:
-                self.prefix_table[prefix] = new_as
-            self.panbgp_identity[new_as.identity_prefix] = new_as
-            logger.debug("New AS node in graph")
+    current_path = path.copy()
+    current_path.extend([start])
 
+    logger.debug(f"Visiting node for AS{start.id}")
 
-    def find_all_paths(self, start_as: AS, dest_as: AS, link_filter, path=[]) -> list[list[AS]]:
-        # Thanks to Gemini.
+    if start == dest:
+        return [current_path]
 
-        current_path = path.copy()
-        current_path.extend([start_as])
+    paths = []
 
-        logger.debug(f"Visiting AS{start_as.number}")
+    for edge in start.adjacency_map.values():
+        neighbor = edge.dest
+        if neighbor not in current_path:
+            new_paths = find_all_paths(graph, neighbor, dest, current_path)
+            paths.extend(new_paths)
 
-        if start_as == dest_as:
-            return [current_path]
+    return paths
 
-        paths = []
+## TODO: Fix all these path finding functions.
 
-        filtered_links: Link = filter(link_filter, start_as.get_links())
-        neighbor_ases = []
-        for link in filtered_links:
-            neighbor_asn = link.path[-1]
-            neighbor_as_obj = self.ases.get(neighbor_asn)
-            if (neighbor_as_obj is not None and 
-                neighbor_as_obj not in neighbor_ases):
-                neighbor_ases.append(neighbor_as_obj)
+def dijkstra(graph, local_as_num, link_cost_function, link_filter_function=None):
 
-        neighbors_nums = [int(as_obj.number) for as_obj in neighbor_ases]
-        logger.debug(f"Extracted neighbors: {neighbors_nums}")
+    distance = defaultdict(lambda : None)
+    distance[local_as_num] = 0
 
-        for neighbor_as in neighbor_ases:
-            if neighbor_as not in current_path:
-                new_paths = self.find_all_paths(
-                    neighbor_as, dest_as, link_filter, current_path)
-                paths.extend(new_paths)
+    predecessor = defaultdict(lambda : None)
+    predecessor[local_as_num] = None
 
-        return paths
+    priority_queue = [(0, local_as_num)]
+    heapify(priority_queue)
 
-    def trusted_paths(self, start_asn: int, dest_asn: int) -> list[list[AS]]:
+    visited = set()
 
-        start_as = self.ases[start_asn]
-        dest_as = self.ases[dest_asn]
-        found_paths = self.find_all_paths(start_as, dest_as, filter_trusted_links)
+    if link_filter_function is None:
+        link_filter_function = lambda link: True
 
-        return_list = []
-        for found_path in found_paths:
-            return_list.append([as_obj.num for as_obj in found_path])
+    # Main algo
+    while priority_queue:
+        # Node with min distance
+        current_distance, current_node = heappop(priority_queue)
+        if current_node in visited:
+            logger.debug(f"Node {current_node} already visited")
+            continue
+        visited.add(current_node)
+        logger.debug(f"Popped from priority queue: distance: {current_distance}, node: {current_node}")
 
-        return return_list
+        # Get neighbors and assign a cost to each link
+        neighbors_with_cost = []
 
+        # WARN: to fix vvv
+        neighbor_obj = graph
+        if neighbor_obj is not None:
+            neighbors_links = neighbor_obj.links.values()
+            filtered_neighbors_links = filter(link_filter_function, neighbors_links)
 
-    def dijkstra(self, local_as_num, link_cost_function, link_filter_function=None):
+            for link in filtered_neighbors_links:
+                neighbors_with_cost.append((link.path[-1], link_cost_function(link)))
 
-        distance = defaultdict(lambda : None)
-        distance[local_as_num] = 0
+        # Update distances
+        for neighbor, cost in neighbors_with_cost:
+            logger.debug(f"reaching {neighbor} with cost {cost}")
+            new_distance = current_distance + cost
+            # if new_distance is better than previous one update it
+            if (distance[neighbor] is None) or (new_distance < distance[neighbor]):
+                logger.debug(f"found better cost. New: {new_distance}, old: {distance[neighbor]}")
+                distance[neighbor] = new_distance
+                predecessor[neighbor] = current_node
+                heappush(priority_queue, (new_distance, neighbor))
 
-        predecessor = defaultdict(lambda : None)
-        predecessor[local_as_num] = None
+    logger.debug(f"Computed MST rooted at {local_as_num}\ndistances: {distance}, predecessors: {predecessor}")
+    return distance, predecessor
 
-        priority_queue = [(0, local_as_num)]
-        heapify(priority_queue)
+def least_cost_path(graph, start_as_num, dest_as_num, link_cost_function, link_filter_function) -> list[int]:
 
-        visited = set()
+    least_cost_path = []
+    cost = 0
+    complete_path = []
 
-        if link_filter_function is None:
-            link_filter_function = lambda link: True
+    distance, predecessor = dijkstra(graph, start_as_num, link_cost_function, link_filter_function)
+    if dest_as_num in predecessor:
+        cost = distance[dest_as_num]
+        current_node = dest_as_num
+        while current_node != None:
+            least_cost_path.append(current_node)
+            current_node = predecessor[current_node]
 
-        # Main algo
-        while priority_queue:
-            # Node with min distance
-            current_distance, current_node = heappop(priority_queue)
-            if current_node in visited:
-                logger.debug(f"Node {current_node} already visited")
-                continue
-            visited.add(current_node)
-            logger.debug(f"Popped from priority queue: distance: {current_distance}, node: {current_node}")
+        least_cost_path.reverse()
+        logger.debug(f"Path returned from Dijkstra: {least_cost_path}")
 
-            # Get neighbors and assign a cost to each link
-            neighbors_with_cost = []
+        complete_path.append(least_cost_path[0])
 
-            neighbor_obj = singleton_network_graph.ases.get(current_node)
-            if neighbor_obj is not None:
-                neighbors_links = neighbor_obj.links.values()
-                filtered_neighbors_links = filter(link_filter_function, neighbors_links)
+        for i in range(len(least_cost_path) - 1):
+            current_as_num = least_cost_path[i]
+            # WARN: to fix vvv
+            current_as_obj = graph.ases[current_as_num]
+            next_as_num = least_cost_path[i + 1]
 
-                for link in filtered_neighbors_links:
-                    neighbors_with_cost.append((link.path[-1], link_cost_function(link)))
+            filtered_links  = filter(link_filter_function, current_as_obj.links.values())
+            for link in filtered_links:
+                if link.path[-1] == next_as_num:
+                    complete_path.extend(link.path)
+                    break
 
-            # Update distances
-            for neighbor, cost in neighbors_with_cost:
-                logger.debug(f"reaching {neighbor} with cost {cost}")
-                new_distance = current_distance + cost
-                # if new_distance is better than previous one update it
-                if (distance[neighbor] is None) or (new_distance < distance[neighbor]):
-                    logger.debug(f"found better cost. New: {new_distance}, old: {distance[neighbor]}")
-                    distance[neighbor] = new_distance
-                    predecessor[neighbor] = current_node
-                    heappush(priority_queue, (new_distance, neighbor))
+        logger.debug(f"Computed \"full path\": {complete_path}")
 
-        logger.debug(f"Computed MST rooted at {local_as_num}\ndistances: {distance}, predecessors: {predecessor}")
-        return distance, predecessor
-
-    def least_cost_path(self, start_as_num, dest_as_num, link_cost_function, link_filter_function) -> list[int]:
-
-        least_cost_path = []
-        cost = 0
-        complete_path = []
-
-        distance, predecessor = self.dijkstra(start_as_num, link_cost_function, link_filter_function)
-        if dest_as_num in predecessor:
-            cost = distance[dest_as_num]
-            current_node = dest_as_num
-            while current_node != None:
-                least_cost_path.append(current_node)
-                current_node = predecessor[current_node]
-
-            least_cost_path.reverse()
-            logger.debug(f"Path returned from Dijkstra: {least_cost_path}")
-
-            complete_path.append(least_cost_path[0])
-
-            for i in range(len(least_cost_path) - 1):
-                current_as_num = least_cost_path[i]
-                current_as_obj = self.ases[current_as_num]
-                next_as_num = least_cost_path[i + 1]
-
-                filtered_links  = filter(link_filter_function, current_as_obj.links.values())
-                for link in filtered_links:
-                    if link.path[-1] == next_as_num:
-                        complete_path.extend(link.path)
-                        break
-
-            logger.debug(f"Computed \"full path\": {complete_path}")
-
-        return complete_path, cost
-
-
-    def __str__(self):
-        ases = [str(as_obj) for as_obj in self.ases.values()]
-        return '\n\n'.join(ases)
-
-singleton_network_graph = NetworkGraph()
+    return complete_path, cost
