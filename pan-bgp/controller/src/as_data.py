@@ -5,6 +5,12 @@ from threading import Lock
 
 logger = logging.getLogger(__name__)
 
+# AS "database"
+
+# They bot are ways of referencing AS objects
+ases: dict[int] = {}
+announced_prefixes: dict[str] = {}
+
 # Dummy RPKI prefix validator
 def is_owner(as_number, prefix) -> bool:
     # TODO: implement
@@ -40,6 +46,7 @@ class AS:
                 self.trusted = False
             else:
                 self.attached_prefixes.append(prefix)
+                announced_prefixes[prefix] = self
 
     @property
     def rib(self) -> None:
@@ -64,8 +71,6 @@ class AS:
     def __repr__(self):
         return self.__str__()
 
-# functions that manage the AS "database"
-ases: dict[int, AS] = {}
 
 def add_as(as_number: int, identity_prefix: str, announced_prefixes: list):
     new_as = AS(as_number, identity_prefix, announced_prefixes)

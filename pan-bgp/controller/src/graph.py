@@ -1,5 +1,7 @@
 from collections import defaultdict
 from heapq import heapify, heappop, heappush
+from itertools import count
+import copy
 import logging
 
 # Get a logger instance
@@ -28,9 +30,10 @@ class Node:
         return self.__str__()
 
 class Edge:
-    def __init__(self, source: Node, dest: Node, attributes=None):
+    def __init__(self, source: Node, dest: Node, cost=None, attributes=None):
         self.source: Node = source
         self.dest: Node = dest
+        self.cost = cost
         self.attributes: dict = attributes if attributes is not None else {}
 
 # the Graph abstraction should have a minimal amount of methods.
@@ -42,6 +45,24 @@ class Graph:
 
         logger.debug("Initialized a new graph")
         logger.debug(f"Graph nodes: {self.nodes}")
+
+    def remove_node(self, node: Node):
+
+        # remove edges that lead to node to be deleted
+        for node_id, node_obj in self.nodes.items():
+            if node_obj != node:
+                adj_map = node_obj.adjacency_map.copy()
+                for adj_node, _ in adj_map.items():
+                    if adj_node.id == node.id:
+                        del node_obj.adjacency_map[node]
+
+        # remove the requested node
+        del self.nodes[node.id]
+
+    def remove_edge(self, start: Node, end: Node):
+        edge_to_remove = start.adjacency_map.get(end)
+        if edge_to_remove is not None:
+            del start.adjacency_map[end]
 
     def __str__(self):
         strings_list = []
@@ -56,7 +77,7 @@ class Graph:
 
 # Path finding functions
 
-def find_all_paths(graph, start: Node, dest: Node, path=[]) -> list[list[Node]]:
+def find_all_paths(graph: Graph, start: Node, dest: Node, path=[]) -> list[list[Node]]:
     # Thanks to Gemini.
 
     current_path = path.copy()
@@ -77,70 +98,64 @@ def find_all_paths(graph, start: Node, dest: Node, path=[]) -> list[list[Node]]:
 
     return paths
 
-## TODO: Fix all these path finding functions.
 
-def dijkstra(graph, local_as_num, link_cost_function, link_filter_function=None):
+def dijkstra(graph: Graph, start: Node):
 
     distance = defaultdict(lambda : None)
-    distance[local_as_num] = 0
+    distance[start.id] = 0
 
     predecessor = defaultdict(lambda : None)
-    predecessor[local_as_num] = None
+    predecessor[start] = None
 
-    priority_queue = [(0, local_as_num)]
+    # counter is just a counter.
+    # it is used for breaking ties when there are elements
+    # with the same priority in the priority queue.
+    counter = count()
+    priority_queue = [(0, next(counter), start)]
     heapify(priority_queue)
 
     visited = set()
 
-    if link_filter_function is None:
-        link_filter_function = lambda link: True
-
     # Main algo
     while priority_queue:
-        # Node with min distance
-        current_distance, current_node = heappop(priority_queue)
+
+        # Get Node with min distance, discarding the counter
+        current_distance, _, current_node = heappop(priority_queue)
         if current_node in visited:
             logger.debug(f"Node {current_node} already visited")
             continue
+
         visited.add(current_node)
         logger.debug(f"Popped from priority queue: distance: {current_distance}, node: {current_node}")
 
-        # Get neighbors and assign a cost to each link
-        neighbors_with_cost = []
-
-        # WARN: to fix vvv
-        neighbor_obj = graph
-        if neighbor_obj is not None:
-            neighbors_links = neighbor_obj.links.values()
-            filtered_neighbors_links = filter(link_filter_function, neighbors_links)
-
-            for link in filtered_neighbors_links:
-                neighbors_with_cost.append((link.path[-1], link_cost_function(link)))
+        edges = current_node.adjacency_map.values()
 
         # Update distances
-        for neighbor, cost in neighbors_with_cost:
-            logger.debug(f"reaching {neighbor} with cost {cost}")
-            new_distance = current_distance + cost
-            # if new_distance is better than previous one update it
-            if (distance[neighbor] is None) or (new_distance < distance[neighbor]):
-                logger.debug(f"found better cost. New: {new_distance}, old: {distance[neighbor]}")
-                distance[neighbor] = new_distance
-                predecessor[neighbor] = current_node
-                heappush(priority_queue, (new_distance, neighbor))
+        for edge in edges:
 
-    logger.debug(f"Computed MST rooted at {local_as_num}\ndistances: {distance}, predecessors: {predecessor}")
+            neighbor = edge.dest
+            new_distance = current_distance + edge.cost
+            logger.debug(f"reaching {neighbor} with cost {edge.cost}")
+            # if new_distance is better than previous one update it
+            if (distance[neighbor.id] is None) or (new_distance < distance[neighbor.id]):
+                logger.debug(f"found better cost. New: {new_distance}, old: {distance[neighbor.id]}")
+                distance[neighbor.id] = new_distance
+                predecessor[neighbor] = current_node
+                heappush(priority_queue, (new_distance, next(counter), neighbor))
+
+    logger.debug(f"Computed MST rooted at {start.id}\ndistances: {distance}, predecessors: {predecessor}")
     return distance, predecessor
 
-def least_cost_path(graph, start_as_num, dest_as_num, link_cost_function, link_filter_function) -> list[int]:
+
+def least_cost_path(graph: Graph, start: Node, dest: Node) -> list[Node]:
 
     least_cost_path = []
     cost = 0
-    complete_path = []
 
-    distance, predecessor = dijkstra(graph, start_as_num, link_cost_function, link_filter_function)
-    if dest_as_num in predecessor:
-        cost = distance[dest_as_num]
-        current_node = dest_as_num
+    distance, predecessor = dijkstra(graph, start)
+    if dest in predecessor:
+        cost = distance[dest]
+        current_node = dest
         while current_node != None:
             least_cost_path.append(current_node)
             current_node = predecessor[current_node]
@@ -148,20 +163,70 @@ def least_cost_path(graph, start_as_num, dest_as_num, link_cost_function, link_f
         least_cost_path.reverse()
         logger.debug(f"Path returned from Dijkstra: {least_cost_path}")
 
-        complete_path.append(least_cost_path[0])
+    return least_cost_path, cost
 
-        for i in range(len(least_cost_path) - 1):
-            current_as_num = least_cost_path[i]
-            # WARN: to fix vvv
-            current_as_obj = graph.ases[current_as_num]
-            next_as_num = least_cost_path[i + 1]
+def least_cost_paths(graph: Graph, start: Node, dest: Node, paths_num: int):
 
-            filtered_links  = filter(link_filter_function, current_as_obj.links.values())
-            for link in filtered_links:
-                if link.path[-1] == next_as_num:
-                    complete_path.extend(link.path)
-                    break
+    # Yen's algorithm for finding K (paths_num) least cost paht
+    # Implementation based on the pseudocode found in the Wikipedia article
 
-        logger.debug(f"Computed \"full path\": {complete_path}")
+    found_paths = []
 
-    return complete_path, cost
+    # compute first least cost path
+    dijkstra_path, _ = least_cost_path(graph, start, dest)
+    found_paths.append([node.id for node in dijkstra_path])
+
+    counter = count()
+    candidate_paths = []
+    heapify(candidate_paths)
+
+    # compute the others k-1 paths
+    for k in range(paths_num - 1):
+        working_path = found_paths[-1]
+        for i, node_id in enumerate(working_path[:-1]):
+
+            working_graph = copy.deepcopy(graph)
+
+            spur_node = working_graph.nodes[node_id]
+            # root path includes spur node
+            root_path = working_path[:i+1]
+            logger.debug(f"root_path: {root_path}")
+            logger.debug(f"spur_node: {spur_node}")
+
+            # Check for paths that have the same root path.
+            # remove previously used edges from spur node to next node.
+            for prev_found_path in found_paths:
+                prev_root_path = prev_found_path[:i+1]
+                if root_path == prev_root_path:
+                    next_to_spur_node = working_graph.nodes[prev_found_path[i+1]]
+                    logger.debug(f"Removing edge ({spur_node.id}, {next_to_spur_node.id}) from graph")
+                    working_graph.remove_edge(spur_node, next_to_spur_node)
+
+            # remove each root_path node from graph, except spur_node
+            for root_node_id in root_path[:-1]:
+                node_to_remove = working_graph.nodes[root_node_id]
+                logger.debug(f"Removing node {node_to_remove.id} from graph")
+                working_graph.remove_node(node_to_remove)
+
+            # compute a new spur_path (starts form spur_node) using Dijkstra
+            dest_node = working_graph.nodes[dest.id]
+            spur_path, _ = least_cost_path(working_graph, spur_node, dest_node)
+            if len(spur_path) != 0:
+                new_path = root_path[:-1] + [node.id for node in spur_path]
+                heappush(candidate_paths, (len(new_path), next(counter), new_path))
+
+        if len(candidate_paths) == 0:
+            logger.debug("Couldn't find more candidate paths")
+            break
+        else:
+            path_len, _, found_path = heappop(candidate_paths)
+            logger.debug(f"Found new path: {found_path}")
+            found_paths.append(found_path)
+
+    # convert found paths from sequence of ids to sequence of nodes
+    converted_paths = []
+    for path in found_paths:
+        converted_path = [graph.nodes[node_id] for node_id in path]
+        converted_paths.append(converted_path)
+
+    return converted_paths
