@@ -39,9 +39,6 @@ class Configurator:
         if self.main == None:
             raise ValueError("Main section is required in config file")
 
-        if self.main.get("identity_prefix") is None:
-            raise ValueError("In main section: identity_prefix is required")
-
         if self.main.get("beaconing_rate") is None:
             self.main["beaconing_rate"] = 5
 

@@ -26,10 +26,10 @@ class ASPath():
 
 class AS:
 
-    def __init__(self, as_number: int, identity_prefix: str, attached_prefixes: list[str]):
+    def __init__(self, as_number: int, locator: str, attached_prefixes: list[str]):
 
         self.number: int = as_number
-        self.identity_prefix = identity_prefix
+        self.locator = locator
 
         self.trusted = True
 
@@ -62,7 +62,7 @@ class AS:
     def __str__(self):
         strings_list = []
         trusted = "trusted" if self.trusted else "untrusted"
-        strings_list.append(f"AS{self.number} ({self.identity_prefix}): {trusted}")
+        strings_list.append(f"AS{self.number} (locator: {self.locator}): {trusted}")
         strings_list.append(f"Attached prefixes {len(self.attached_prefixes)}: {self.attached_prefixes}")
         strings_list.append(f"ASPaths for prefixes {len(self.rib)}: {list(self.rib.items())}")
 
@@ -72,8 +72,8 @@ class AS:
         return self.__str__()
 
 
-def add_as(as_number: int, identity_prefix: str, announced_prefixes: list):
-    new_as = AS(as_number, identity_prefix, announced_prefixes)
+def add_as(as_number: int, locator: str, announced_prefixes: list):
+    new_as = AS(as_number, locator, announced_prefixes)
     ases[as_number] = new_as
 
 def add_as_paths(as_number, as_paths_list: list[dict]):

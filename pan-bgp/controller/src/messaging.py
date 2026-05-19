@@ -16,10 +16,13 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
     def SendASInfo(self, request, context):
 
         local_as_num: int = request.local_as
-        identity_prefix: str = request.identity_prefix
+        locator: str = request.locator
         attached_prefixes: list[str] = request.prefix_list
 
-        as_data.add_as(local_as_num, identity_prefix, attached_prefixes)
+        logger.info(f"Got first message from AS{local_as_num}")
+        logger.info(f"AS{local_as_num}: locator={locator}, prefixes={attached_prefixes}")
+
+        as_data.add_as(local_as_num, locator, attached_prefixes)
 
         return controller_pb2.ResponseStatus(status="OK")
 
@@ -35,11 +38,20 @@ class ControllerMessagingService(controller_pb2_grpc.ControllerMessagingServiceS
 
         found_paths = core.compute_paths(local_as_id, dest_prefix, policy, number_paths)
 
+        grpc_found_paths = []
+        for path in found_paths:
+            grpc_path = []
+            for node in path:
+                grpc_node = controller_pb2.PathNode(
+                        asn=node.id,
+                        locator=node.attributes["locator"])
+                grpc_path.append(grpc_node)
+            grpc_found_paths.append(
+                    controller_pb2.ASPath(as_path=grpc_path))
+
         logger.debug(f"Returning to AS{local_as_id} paths for {dest_prefix}: {found_paths}")
 
-        # Return a list of ASPaths. Each ASPath is a list of ASN
-        paths = [controller_pb2.ASPath(as_path=path) for path in found_paths]
-        return controller_pb2.Paths(paths=paths)
+        return controller_pb2.Paths(paths=grpc_found_paths)
 
     def SendBGPPaths(self, request, context):
 

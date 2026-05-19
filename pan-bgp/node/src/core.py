@@ -24,11 +24,11 @@ class Path:
 class Node:
 
     def __init__(self, asn: int, attached_prefixes: list[str], 
-                 as_paths: dict[str, Path], identity_prefix: str):
+                 as_paths: dict[str, Path], locator: str):
 
         self.asn: int = asn
         self.attached_prefixes: list[str] = attached_prefixes
-        self.identity_prefix: str = identity_prefix
+        self.locator: str = locator
 
         # Considering one path per prefix
         self.as_paths: dict[str, Path] = as_paths
@@ -53,7 +53,7 @@ class Node:
 
     def __str__(self):
         strings_list = []
-        strings_list.append(f"Node: AS{self.asn} ({self.identity_prefix})")
+        strings_list.append(f"Node: AS{self.asn}, locator: ({self.locator})")
         strings_list.append(f"Attached prefixes ({len(self.attached_prefixes)}): {self.attached_prefixes}")
         as_paths = self.get_as_paths()
         strings_list.append(f"AS Paths ({len(as_paths)}): {list(as_paths.values())}")

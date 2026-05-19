@@ -7,28 +7,24 @@ logger = logging.getLogger(__name__)
 
 def add_graph_nodes(graph, trusted_only=False):
 
-    identities = []
-
     candidate_ases = []
+    # extract trusted ases only
     if trusted_only:
         for as_obj in as_data.ases.values():
             if as_obj.trusted:
                 candidate_ases.append(as_obj)
+    # use all ases
     else:
         candidate_ases = list(as_data.ases.values())
 
-    # known AS data
-    for as_obj in candidate_ases:
-        logger.debug(f"{as_obj}")
-
-    # create node objects
+    # create node objects from as_objects
     for as_obj in candidate_ases:
         as_number = as_obj.number
         logger.debug(f"Creating graph node for AS{as_number}")
         new_node = g.Node(as_number)
+        new_node.attributes["locator"] = as_obj.locator
         logger.debug(f"Graph object: {new_node}")
         graph.nodes[as_number] = new_node
-        identities.append(as_obj.identity_prefix)
 
     return graph
 
@@ -39,7 +35,7 @@ def add_trusted_edges(graph):
     for graph_node in graph.nodes.values():
         as_obj = as_data.ases[graph_node.id]
         ases.append(as_obj)
-        identities.append(as_obj.identity_prefix)
+        identities.append(as_obj.locator)
 
     # create edges using ASpaths to identities
     for as_obj in ases:
@@ -61,7 +57,7 @@ def add_controlled_edges(graph):
     for graph_node in graph.nodes.values():
         as_obj = as_data.ases[graph_node.id]
         ases.append(as_obj)
-        identities.append(as_obj.identity_prefix)
+        identities.append(as_obj.locator)
 
     # create edges using ASpaths to identities
     for as_obj in ases:
@@ -109,12 +105,7 @@ def compute_paths(source_as: int, dest_prefix: str, policy: str, paths_num: int)
 
         paths = g.find_all_paths(graph, source_node, dest_node)
 
-        int_paths = []
-        for path in paths[:paths_num]:
-            int_path = [as_obj.id for as_obj in path]
-            int_paths.append(int_path)
-
-        return int_paths
+        return paths[:paths_num]
 
     if policy == "minimize_untrusted":
 
@@ -136,12 +127,18 @@ def compute_paths(source_as: int, dest_prefix: str, policy: str, paths_num: int)
 
         paths = g.least_cost_paths(graph, source_node, dest_node, paths_num)
 
-        int_paths = []
-        for path in paths:
-            int_path = [as_obj.id for as_obj in path]
-            int_paths.append(int_path)
-
-        return int_paths
+        return paths[:paths_num]
 
     raise ValueError("Unknown policy")
+
+def install_srv6_path(dest, path):
+
+    # build command string
+        # for each node in path:
+            # if path is not last, add :1 after locator prefix
+            # if path is last add :100 after locator prefix
+
+    # invoke subprocess for installing route
+
+    raise NotImplementedError
 

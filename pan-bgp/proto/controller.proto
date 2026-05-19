@@ -8,7 +8,7 @@ service ControllerMessagingService {
 
 message ASInfo {
   uint32 local_as = 1;
-  string identity_prefix = 2;
+  string locator = 2;
   repeated string prefix_list = 3;
 }
 
@@ -27,8 +27,13 @@ message Policy {
   string policy = 1;
 }
 
+message PathNode {
+  uint32 asn = 1;
+  string locator = 2;
+}
+
 message ASPath {
-  repeated uint32 as_path = 1;
+  repeated PathNode as_path = 1;
 }
 
 message Paths{

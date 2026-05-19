@@ -13,7 +13,8 @@ supported daemons.
 
 logger = logging.getLogger(__name__)
 
-_rib_hash = hashlib.sha1(b"")
+_ipv4_rib_hash = hashlib.sha1(b"")
+_ipv6_rib_hash = hashlib.sha1(b"")
 
 
 def _call_vtysh(vtysh_command) -> str | None:
@@ -21,7 +22,7 @@ def _call_vtysh(vtysh_command) -> str | None:
     # Probably the command prefix has to be more general.
     # for now it talks directly to bgpd
 
-    command = ["vtysh", "-d", "bgpd", "-c"]
+    command = ["vtysh", "-c"]
     command.extend(vtysh_command)
 
     command_out = None
@@ -67,11 +68,15 @@ def bgp_peers_asn() -> list[int]:
     return remote_ases
 
 
-def get_attached_prefixes() -> list[str]:
+def get_attached_prefixes(ipv6=False) -> list[str]:
 
     attached_prefixes = []
 
-    vtysh_bgp_self_originate = ["show ip bgp self-originate json"]
+    if ipv6 == True:
+        vtysh_bgp_self_originate = ["show bgp self-originate json"]
+    else:
+        vtysh_bgp_self_originate = ["show ip bgp self-originate json"]
+
     vtysh_out = _call_vtysh(vtysh_bgp_self_originate)
     vtysh_out = json.loads(vtysh_out)
 
@@ -83,7 +88,7 @@ def get_attached_prefixes() -> list[str]:
     return attached_prefixes
 
 
-def get_as_paths() -> list[Path] :
+def get_as_paths(ipv6=False) -> list[Path] :
     """
     This function extract the bestpaths from the BGP RIB.
     It returns the extracted paths as a list of Path objects.
@@ -91,11 +96,19 @@ def get_as_paths() -> list[Path] :
     returns an empty list.
     """
 
-    global _rib_hash
+    _rib_hash = None
     paths_list = []     # init return list
 
     # get RIB from FRR
-    get_rib_command = ["show ip bgp json"]
+    if ipv6 == True:
+        get_rib_command = ["show bgp json"]
+        global _ipv6_rib_hash
+        _rib_hash = _ipv6_rib_hash
+    else:
+        get_rib_command = ["show ip bgp json"]
+        global _ipv4_rib_hash
+        _rib_hash = _ipv4_rib_hash
+
     new_rib = json.loads(_call_vtysh(get_rib_command)).get("routes")
     logger.debug(f"RIB: {new_rib}")
     new_rib_hash = hashlib.sha1(bytes(str(new_rib), "utf8"))
@@ -120,3 +133,12 @@ def get_as_paths() -> list[Path] :
                     paths_list.append(new_path_obj)
 
     return paths_list
+
+def get_locator() -> str:
+
+    get_locator_command = ["show segment-routing srv6 locator panbgp detail json"]
+    locator_string = json.loads(_call_vtysh(get_locator_command)).get("prefix")
+    if locator_string is None:
+        raise ValueError('SRv6 locator with name "panbgp" is required')
+
+    return locator_string

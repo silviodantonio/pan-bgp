@@ -1,6 +1,5 @@
 import sys
 import logging
-
 from threading import Thread
 from time import sleep
 
@@ -21,7 +20,7 @@ class PathsUpdaterService(Thread):
 
         try:
             while True:
-                as_paths_list = frr.get_as_paths()
+                as_paths_list = frr.get_as_paths(ipv6=True)
                 if len(as_paths_list) != 0:
                     logger.info("Got new AS paths. Updating node info")
                     self.node.update_as_paths(as_paths_list)
@@ -44,16 +43,20 @@ if __name__ == '__main__':
     logger = logging.getLogger(__name__)
 
     logger.info("Initializing Node object")
-    initial_as_paths = frr.get_as_paths()
+    initial_as_paths = frr.get_as_paths(ipv6=True)
     initial_as_paths_dict = {}
     for as_path in initial_as_paths:
         initial_as_paths_dict[as_path.dest_prefix] = as_path
 
+    attached_prefixes = frr.get_attached_prefixes()
+    attached_prefixes.extend(frr.get_attached_prefixes(ipv6=True))
+
     core.node_singleton = core.Node(
             frr.get_asn(),
-            frr.get_attached_prefixes(),
+            attached_prefixes,
             initial_as_paths_dict,
-            configuration.main["identity_prefix"])
+            frr.get_locator(),
+    )
 
     logger.debug(core.node_singleton)
 

@@ -66,14 +66,14 @@ class Messager:
             stub = controller_pb2_grpc.ControllerMessagingServiceStub(channel)
 
             local_as = self.node.asn
-            identity_prefix = self.node.identity_prefix
+            locator = self.node.locator
             attached_prefixes = self.node.attached_prefixes
 
             logger.info("Sending AS info message to controller")
-            logger.debug(f"Info: AS{local_as} ({identity_prefix}), attached prefixes: {attached_prefixes}")
+            logger.debug(f"Info: AS{local_as} ({locator}), attached prefixes: {attached_prefixes}")
 
             response = stub.SendASInfo(controller_pb2.ASInfo(local_as=local_as,
-                                                             identity_prefix=identity_prefix,
+                                                             locator=locator,
                                                              prefix_list=attached_prefixes))
 
         logger.info("Received: " + response.status)
@@ -95,9 +95,13 @@ class Messager:
             response = stub.RequestPath(request)
 
             paths = []
-            for path in response.paths:
-                # path is a ASPath object
-                paths.append(path.as_path)
+            for returned_path in response.paths:
+                path = []
+                for returned_node in returned_path.as_path:
+                    node_asn = returned_node.asn
+                    node_locator = returned_node.locator
+                    path.append((node_asn, node_locator))
+                paths.append(path)
 
             logger.info(f"Received paths {paths}")
             return paths
