@@ -1,2 +1,2 @@
-ip addr add 192.0.2.14/30 dev eth0
-ip route add default via 192.0.2.13 dev eth0
+ip -6 addr add af03::1/16 dev eth0
+ip route add default via af03::ff dev eth0
