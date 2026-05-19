@@ -5,16 +5,13 @@ ip addr add 192.0.2.22/30 dev eth0
 ip addr add 192.0.2.26/30 dev eth1
 ip addr add 198.51.100.5/21 dev eth2
 
-ip addr add 203.0.113.5/32 dev lo
-
 # define dummy interface for managing SRv6 SIDs
 ip link add srv6-sids type dummy
 ip link set srv6-sids up
 
-ip -6 addr add 2001:0db8:1:5::1/64 dev srv6-sids
-ip -6 route add 2001:db8:1:5::100 encap seg6local action End table main dev srv6-sids
-ip -6 route add 2001:db8:1:5::200 encap seg6local action End.DT6 table main dev srv6-sids
+ip -6 addr add aa:5::1/32 dev srv6-sids
+ip -6 route add aa:5:1:: encap seg6local action End table main dev srv6-sids
+ip -6 route add aa:5:100:: encap seg6local action End.DT6 table main dev srv6-sids
 
 systemctl start frr
-
 systemctl start panbgpd_node
