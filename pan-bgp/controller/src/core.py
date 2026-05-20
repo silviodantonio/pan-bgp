@@ -130,15 +130,3 @@ def compute_paths(source_as: int, dest_prefix: str, policy: str, paths_num: int)
         return paths[:paths_num]
 
     raise ValueError("Unknown policy")
-
-def install_srv6_path(dest, path):
-
-    # build command string
-        # for each node in path:
-            # if path is not last, add :1 after locator prefix
-            # if path is last add :100 after locator prefix
-
-    # invoke subprocess for installing route
-
-    raise NotImplementedError
-

@@ -2,14 +2,17 @@ import socket
 import logging
 from threading import Thread
 
+from core import install_srv6_path
+
 logger = logging.getLogger(__name__)
 
 HELP_MESSAGE = """\
 help                                print this message
 paths <prefix> <policy> <num>       request <num> paths for <prefix>, satisfying <policy>
+install <path_no>                   install the <path_no> from previously requested paths
 
 policies: trusted_paths
-          minimize_untrusted (returns only one path)
+          minimize_untrusted
           minimize_rtt (returns only one path)
 """
 
@@ -17,6 +20,8 @@ policies: trusted_paths
 def serve_client(conn, addr, messager):
     logger.info(f"New connection from {addr}")
     conn.sendall(b"--- Background Service Console ---\nType 'help' for commands.\n> ")
+
+    last_requested = None
 
     try:
         while True:
@@ -37,9 +42,35 @@ def serve_client(conn, addr, messager):
                 try:
                     logger.debug(f"Requesting {num} pahts for {prefix} with policy {policy}")
                     paths = messager.request_path(prefix, policy, num)
-                    response = f"Paths for prefix {prefix}: {paths}"
+
+                    last_requested = (prefix, paths)
+
+                    pretty_paths = []
+                    for path in paths:
+                        pretty_paths.append([asn for asn, _ in path])
+
+                    response = "\n".join([f"{num}: {path}" for num, path in enumerate(pretty_paths)])
+
                 except Exception as e:
                     logger.debug(f"Something went wrong while sending the request: {e}")
+
+            elif tokens[0] == 'install':
+
+                logger.info("User requested to install a new SRv6 rule")
+
+                if last_requested is None:
+                    response = "Need to request some paths first with 'paths' command"
+                else:
+                    path_no = int(tokens[1])
+
+                    last_requested_dest, last_requested_paths = last_requested
+                    if path_no > len(last_requested_paths):
+                        response = "Invalid path number"
+                    else:
+                        logger.debug(f"Attempting to install a new SRv6 rule for {last_requested_dest}")
+                        install_srv6_path(last_requested_dest, last_requested_paths[path_no])
+                        response = f"SRv6 rule for {last_requested_dest} installed"
+
             elif tokens[0] == 'help':
                 response = HELP_MESSAGE
             else:
